@@ -32,13 +32,13 @@ graph TD
         E -->|4. Retrieves File from GridFS| C
         E -->|5. Extracts Text| F(Text Extraction Module)
         F -->|6. Sends Text to AI| G(AI Service / LLM)
-        G -->|7. Returns Analysis (KVPs, Category)| E
+        G -->|"7. Returns Analysis (KVPs, Category)"| E
         E -->|8. Creates Vector Embeddings| H(Sentence Transformer)
-        E -->|9. Stores Metadata, KVPs, & Embeddings| C
+        E -->|"9. Stores Metadata, KVPs, & Embeddings"| C
     end
 
     subgraph Data Retrieval
-        B -->|Queries for docs, search, stats| C
+        B -->|"Queries for docs, search, stats"| C
     end
 ```
 
