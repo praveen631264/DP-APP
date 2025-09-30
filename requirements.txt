@@ -3,11 +3,14 @@ python-dotenv
 werkzeug
 flask-cors
 celery
-redis
 langchain
 sentence-transformers
 pymongo
 PyPDF2
 python-docx
 openpyxl
+kafka-python==1.4.7
 gridfs
+gunicorn
+langchain-community
+ollama

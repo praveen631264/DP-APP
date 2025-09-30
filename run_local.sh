@@ -4,57 +4,41 @@
 # Local Development Startup Script
 # =============================================================================
 # This script is for starting the application on your local machine. 
-# It assumes you have already run the one-time setup (creating a virtual 
-# environment and installing dependencies).
-#
-# It will start the three required services in separate terminal windows.
+# It simplifies the startup process by using docker-compose for background
+# services and providing clear instructions for the application components.
 # =============================================================================
 
 echo "Starting Application for Local Development..."
 
-# --- Step 1: Start Kafka ---
-# Kafka requires two services: Zookeeper and the Kafka Broker.
-# IMPORTANT: You must have Kafka installed. The paths below might need to be
-# adjusted to match your Kafka installation directory.
+# --- Step 1: Start Background Services with Docker Compose ---
+echo "--> Starting Kafka, and Zookeeper using docker-compose..."
 
-echo "
---- Terminal 1: Starting Kafka ---
-This script can't automatically open new terminal windows for you.
-Please open TWO NEW TERMINAL TABS/WINDOWS and run the following commands:
+docker-compose up -d kafka
 
-1. In the FIRST new terminal, start Zookeeper:
-   (Adjust the path to your Kafka installation)
-   bin/zookeeper-server-start.sh config/zookeeper.properties
+if [ $? -ne 0 ]; then
+    echo "Error: docker-compose failed to start." >&2
+    echo "Please ensure Docker is running and docker-compose is installed." >&2
+    exit 1
+fi
 
-2. In the SECOND new terminal, start the Kafka Broker:
-   (Adjust the path to your Kafka installation)
-   bin/kafka-server-start.sh config/server.properties
+echo "--> Background services started successfully."
 
-Press [Enter] here after you have started both Kafka services...
-"
-read
+# --- Step 2: Instructions for Celery Worker & Flask Server ---
+echo ""
+echo "--- Your Action Required ---"
+echo "Please open TWO new terminal windows/tabs to start the application components:"
 
-# --- Step 2: Start the Celery Worker ---
-echo "
---- Terminal 2: Starting Celery Worker ---
-Now, open a THIRD new terminal and run these commands:
+echo ""
+echo "1. In the FIRST new terminal, start the Celery Worker:"
+echo "   --------------------------------------------------"
+echo "   source .venv/bin/activate"
+echo "   celery -A app.celery_worker.celery_app worker --loglevel=info"
 
-1. Activate the virtual environment:
-   source .venv/bin/activate
+echo ""
+echo "2. In the SECOND new terminal, start the Flask Web Server:"
+echo "   ---------------------------------------------------"
+echo "   ./devserver.sh"
 
-2. Start the Celery worker:
-   celery -A app.celery_worker.celery_app worker --loglevel=info
-
-Press [Enter] here after you have started the Celery worker...
-"
-read
-
-# --- Step 3: Start the Flask Web Server ---
-echo "
---- Terminal 3: Starting Flask Web Server ---
-Finally, this script will now start the Flask development server in this window.
-"
-
-./devserver.sh
-
-echo "Application has been started. The Flask API is available at http://localhost:5000"
+echo ""
+echo "Once both services are running, the Flask API will be available at http://localhost:5000"
+echo "You can stop the background services at any time by running: docker-compose down"

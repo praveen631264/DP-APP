@@ -1,95 +1,95 @@
 import logging
 from celery import Celery
-from flask import Flask
-from app.utils.doc_utils import get_doc_text, get_kvps_and_category
-from langchain.embeddings import HuggingFaceEmbeddings
+from flask import current_app, Flask
+from app.utils.doc_utils import extract_text, extract_kvps_and_category
+from app.ai_models import get_llm, get_embeddings
+from app.database import DocumentDB
 
+# Initialize Celery
 celery = Celery(__name__)
 logger = logging.getLogger(__name__)
 
-# Global variable for the embeddings model
-embeddings_model = None
-
-def make_celery(app):
+def make_celery(app: Flask) -> Celery:
     """
     Factory to create and configure a Celery instance that is integrated
     with the Flask application context.
     """
-    global embeddings_model
+    # Update Celery configuration from Flask app config
+    celery.conf.update(
+        broker_url=app.config["CELERY_BROKER_URL"],
+        result_backend=app.config["CELERY_RESULT_BACKEND"]
+    )
 
-    celery.conf.update(app.config)
-
-    # Eagerly load the embeddings model when the app is created
-    if embeddings_model is None:
-        model_name = app.config.get("EMBEDDINGS_MODEL_NAME", "sentence-transformers/all-MiniLM-L6-v2")
-        logger.info(f"Loading embeddings model: {model_name}")
-        embeddings_model = HuggingFaceEmbeddings(
-            model_name=model_name,
-            model_kwargs={'device': 'cpu'} 
-        )
-        logger.info("Embeddings model loaded successfully.")
-
+    # Subclass Celery Task to automatically push a Flask app context
     class ContextTask(celery.Task):
         def __call__(self, *args, **kwargs):
             with app.app_context():
+                # Make the database client available to the task
+                self.db = current_app.db
                 return self.run(*args, **kwargs)
 
     celery.Task = ContextTask
+    logger.info("Celery instance configured.")
     return celery
 
-@celery.task(name='process_document_task')
-def process_document_task(doc_id):
+@celery.task(bind=True, name='process_document_task', autoretry_for=(Exception,), retry_backoff=True, max_retries=3)
+def process_document_task(self, doc_id: str):
     """
-    Asynchronous task to process a document: extract text, generate embeddings, and get KVPs.
+    Asynchronous task to process a single document. This task is the core of the document analysis pipeline.
+    It uses automatic retry for robustness.
     """
-    from flask import current_app
-    db = current_app.db
+    db: DocumentDB = self.db
 
-    doc = db.get_document(doc_id)
-    if not doc:
-        logger.error(f"[Celery Task] Error: Document with ID {doc_id} not found.")
-        return
-
-    file_content = db.get_file_content(doc.get('file_id'))
-    if not file_content:
-        logger.error(f"[Celery Task] Error: File content for doc ID {doc_id} not found in GridFS.")
-        db.update_document_status(doc_id, "Processing Failed", {}, None, None, None)
-        return
-
-    logger.info(f"[Celery Task] Processing document: {doc['filename']}")
-
-    # 1. Extract text
-    text = get_doc_text(file_content, doc['content_type'])
-    if not text:
-        logger.warning(f"[Celery Task] Warning: Could not extract text from {doc['filename']}")
-        db.update_document_status(doc_id, "Processing Failed", {}, None, "", None)
-        return
-
-    # 2. Generate vector embedding for the text
     try:
-        global embeddings_model
-        if embeddings_model is None:
-             # This is a fallback in case the model wasn't loaded during app creation
-            model_name = current_app.config.get("EMBEDDINGS_MODEL_NAME", "sentence-transformers/all-MiniLM-L6-v2")
-            embeddings_model = HuggingFaceEmbeddings(model_name=model_name, model_kwargs={'device': 'cpu'})
-        
+        logger.info(f"[TASK_START] Processing document ID: {doc_id}")
+        doc = db.get_document(doc_id)
+        if not doc:
+            logger.error(f"Document with ID {doc_id} not found. Aborting task.")
+            return
+
+        file_content = db.get_file_content(doc.get('file_id'))
+        if not file_content:
+            db.update_document_status(doc_id, "Error", "File content not found in storage.")
+            logger.error(f"File content for doc ID {doc_id} not found. Aborting.")
+            return
+
+        # 1. Extract Text from document
+        logger.info(f"Step 1/4: Extracting text from '{doc['filename']}'.")
+        text = extract_text(file_content, doc['content_type'])
+        if not text:
+            db.update_document_status(doc_id, "Error", "Failed to extract text from document.")
+            logger.warning(f"Could not extract text from '{doc['filename']}'.")
+            return
+        db.update_document_text(doc_id, text)
+
+        # 2. Use AI to Extract Key-Value Pairs and Category
+        logger.info(f"Step 2/4: Extracting KVPs and category for '{doc['filename']}'.")
+        llm = get_llm()
+        all_categories = db.get_all_categories()
+        kvps, category_name, explanation = extract_kvps_and_category(text, all_categories, llm)
+
+        # 3. Generate Embeddings for the extracted text
+        logger.info(f"Step 3/4: Generating embeddings for '{doc['filename']}'.")
+        embeddings_model = get_embeddings()
         embedding = embeddings_model.embed_query(text)
-    except Exception as e:
-        logger.error(f"[Celery Task] Error generating embedding for {doc['filename']}: {e}", exc_info=True)
-        db.update_document_status(doc_id, "Processing Failed", {}, None, text, None)
-        return
+        
+        # 4. Update the document in the database with all the new information
+        logger.info(f"Step 4/4: Saving all extracted data for '{doc['filename']}'.")
+        db.update_document_after_processing(
+            doc_id=doc_id,
+            kvps=kvps,
+            category_name=category_name,
+            explanation=explanation,
+            embedding=embedding
+        )
 
-    # 3. Use AI to extract KVPs and categorize
-    try:
-        kvps, category = get_kvps_and_category(text)
-    except Exception as e:
-        logger.error(f"[Celery Task] Error during AI processing for {doc['filename']}: {e}", exc_info=True)
-        db.update_document_status(doc_id, "Processing Failed", {}, None, text, embedding)
-        return
+        logger.info(f"[TASK_SUCCESS] Successfully processed document ID: {doc_id}")
 
-    # 4. Save all results to MongoDB
-    db.update_document_status(doc_id, "Processed", kvps, category, text, embedding)
-    
-    logger.info(f"[Celery Task] Successfully processed and saved document: {doc['filename']}")
+    except Exception as e:
+        logger.error(f"[TASK_FAILURE] An unexpected error occurred while processing document ID {doc_id}: {e}", exc_info=True)
+        # Mark the document as failed, so it can be reprocessed manually
+        db.update_document_status(doc_id, "Error", "An unexpected error occurred during processing.")
+        # The task will be retried automatically by Celery.
+        raise
 
     return {"status": "success", "doc_id": doc_id}

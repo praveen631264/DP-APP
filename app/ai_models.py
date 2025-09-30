@@ -1,80 +1,60 @@
-from ctransformers import AutoModelForCausalLM
-from pypdf import PdfReader
-from docx import Document
+import logging
 import threading
-from app import document_categories # Import the centralized categories
+from flask import current_app
+from langchain_community.chat_models import ChatOllama
+from langchain.embeddings import HuggingFaceEmbeddings
 
-# A lock to ensure that the model is loaded only once
-model_lock = threading.Lock()
-llm = None
+# --- Globals for AI Models ---
+# Using threading locks to ensure thread-safe, single initialization of models.
+l_llm = None
+l_embeddings = None
+llm_lock = threading.Lock()
+embeddings_lock = threading.Lock()
+
+logger = logging.getLogger(__name__)
 
 def get_llm():
     """
-    Loads the quantized language model into memory. 
-    This function is thread-safe and ensures the model is loaded only once.
+    Provides a thread-safe, global instance of the ChatOllama model.
+    Initializes the model on the first call.
     """
-    global llm
-    with model_lock:
-        if llm is None:
-            # Download the model from Hugging Face Hub
-            # Using a smaller, quantized model for CPU execution
-            llm = AutoModelForCausalLM.from_pretrained(
-                "TheBloke/Mistral-7B-Instruct-v0.1-GGUF", 
-                model_file="mistral-7b-instruct-v0.1.Q4_K_M.gguf", 
-                model_type="mistral",
-                gpu_layers=0  # Set to 0 to force CPU execution
-            )
-    return llm
+    global l_llm
+    with llm_lock:
+        if l_llm is None:
+            try:
+                logger.info("Initializing ChatOllama model for the first time...")
+                l_llm = ChatOllama(
+                    base_url=current_app.config['OLLAMA_BASE_URL'],
+                    model=current_app.config['CHAT_MODEL_NAME'],
+                    temperature=0
+                )
+                logger.info(f"ChatOllama model initialized successfully. Using model: {current_app.config['CHAT_MODEL_NAME']}")
+            except Exception as e:
+                logger.critical(f"Failed to initialize the Ollama LLM. Ensure Ollama is running and the model is available. Error: {e}", exc_info=True)
+                raise ConnectionError("Could not connect to the local AI model via Ollama.") from e
+    return l_llm
 
-def extract_text_from_pdf(filepath):
-    """Extracts text from a PDF file."""
-    reader = PdfReader(filepath)
-    text = ""
-    for page in reader.pages:
-        text += page.extract_text()
-    return text
-
-def extract_text_from_docx(filepath):
-    """Extracts text from a DOCX file."""
-    doc = Document(filepath)
-    text = ""
-    for paragraph in doc.paragraphs:
-        text += paragraph.text + "\n"
-    return text
-
-def process_document_with_llm(document):
+def get_embeddings():
     """
-    Processes a document using the local LLM to classify it and extract KVPs.
+    Provides a thread-safe, global instance of the HuggingFace Embeddings model.
+    Initializes the model on the first call.
     """
-    llm = get_llm()
-    filepath = document['path']
-    
-    # 1. Extract text from the document
-    if filepath.endswith('.pdf'):
-        text = extract_text_from_pdf(filepath)
-    elif filepath.endswith('.docx'):
-        text = extract_text_from_docx(filepath)
-    else:
-        # For images, you would need an OCR library like Tesseract.
-        # This is a placeholder for now.
-        text = "Image content would be extracted here."
-
-    # 2. Classify the document using the dynamic category list
-    category_list = ", ".join(document_categories)
-    classification_prompt = f"""Classify the following document text into one of these categories: {category_list}. 
-    Text: {text}
-    Category:"""
-    category = llm(classification_prompt)
-
-    # 3. Extract Key-Value Pairs
-    kvp_prompt = f"""Based on the text of the document, which is a {category}, extract the key-value pairs. 
-    Text: {text}
-    Key-Value Pairs:"""
-    kvps = llm(kvp_prompt)
-
-    return {
-        "category": category.strip(),
-        "kvps": kvps.strip(),
-        "status": "Extraction Complete",
-        "text": text
-    }
+    global l_embeddings
+    with embeddings_lock:
+        if l_embeddings is None:
+            try:
+                model_name = current_app.config['EMBEDDINGS_MODEL_NAME']
+                logger.info(f"Initializing HuggingFace Embeddings model '{model_name}' for the first time...")
+                # For local, CPU-based inference, we specify the device as 'cpu'
+                model_kwargs = {'device': 'cpu'} 
+                encode_kwargs = {'normalize_embeddings': False}
+                l_embeddings = HuggingFaceEmbeddings(
+                    model_name=model_name,
+                    model_kwargs=model_kwargs,
+                    encode_kwargs=encode_kwargs
+                )
+                logger.info("HuggingFace Embeddings model initialized successfully.")
+            except Exception as e:
+                logger.critical(f"Failed to download or initialize the embeddings model. Error: {e}", exc_info=True)
+                raise RuntimeError(f"Could not load the local embeddings model '{model_name}'.") from e
+    return l_embeddings

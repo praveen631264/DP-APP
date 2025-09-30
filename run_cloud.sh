@@ -61,7 +61,10 @@ echo "Deploying the Flask application to Cloud Run..."
 #   --platform managed \
 #   --region ${REGION} \
 #   --allow-unauthenticated \ # Makes the service public
-#   --set-env-vars="KAFKA_BROKER_URL=your_kafka_url,OTHER_VAR=value" # Set necessary env vars
+#   # Important: You must provide the connection details for your Kafka broker.
+#   # For cloud deployments, a managed service like Confluent Cloud or Amazon MSK is recommended.
+#   # Ensure your Cloud Run service can connect to the broker (VPC connectors may be required).
+#   --set-env-vars="CELERY_BROKER_URL=kafka://your-kafka-broker:9092,OTHER_VAR=value" 
 
 
 # --- IMPORTANT NOTES for CELERY WORKER ---
@@ -79,7 +82,7 @@ echo "Deploying the Flask application to Cloud Run..."
 #   --platform managed \
 #   --region ${REGION} \
 #   --no-allow-unauthenticated \ # Internal service, not public
-#   --set-env-vars="KAFKA_BROKER_URL=your_kafka_url"
+#   --set-env-vars="CELERY_BROKER_URL=kafka://your-kafka-broker:9092"
 #
 # Option B: Use Google Kubernetes Engine (GKE) or a Compute Engine VM (More Robust)
 # For a traditional, long-running Celery worker that constantly listens to a
@@ -90,10 +93,4 @@ echo "Deploying the Flask application to Cloud Run..."
 echo "
 Cloud Deployment Guide:
 
-This script contains the commented-out commands to deploy to Google Cloud.
-
-1.  Fill in your project details at the top of the script.
-2.  Run the one-time setup commands manually first.
-3.  For each deployment, uncomment and run the workflow commands.
-
-Review the notes on deploying the Celery worker carefully."
+This script contains the commented-out commands to deploy to 

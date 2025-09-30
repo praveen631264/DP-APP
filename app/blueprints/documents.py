@@ -1,10 +1,12 @@
 import os
 import datetime
+import logging
 from flask import Blueprint, request, jsonify, current_app, send_file
 from werkzeug.utils import secure_filename
 from io import BytesIO
 
 documents_bp = Blueprint('documents_bp', __name__)
+logger = logging.getLogger(__name__)
 
 ALLOWED_EXTENSIONS = {'txt', 'pdf', 'docx', 'md', 'xlsx'}
 
@@ -52,8 +54,20 @@ def get_documents():
     """Fetches documents, optionally filtering by category."""
     db = current_app.db
     category = request.args.get('category')
-    docs = db.get_documents(category=category)
+    # Add a new parameter to fetch deleted documents for the trash view
+    include_deleted = request.args.get('include_deleted', 'false').lower() == 'true'
+    docs = db.get_documents(category=category, include_deleted=include_deleted)
     return jsonify(docs)
+
+@documents_bp.route('/documents/search', methods=['GET'])
+def search_documents():
+    db = current_app.db
+    query = request.args.get('q', '')
+    if not query:
+        return jsonify([])
+
+    results = db.search_documents(query)
+    return jsonify(results)
 
 @documents_bp.route('/documents/<doc_id>', methods=['GET'])
 def get_document_details(doc_id):
@@ -63,6 +77,34 @@ def get_document_details(doc_id):
         return jsonify({"document": doc})
     else:
         return jsonify({"error": "Document not found"}), 404
+
+@documents_bp.route('/documents/<doc_id>', methods=['DELETE'])
+def soft_delete_document(doc_id):
+    """Marks a document as deleted (soft delete)."""
+    try:
+        if current_app.db.soft_delete_document(doc_id):
+            logger.info(f"Successfully soft-deleted document with ID {doc_id}")
+            return jsonify({"message": "Document moved to trash"}), 200
+        else:
+            logger.warning(f"Soft delete failed: Document with ID {doc_id} not found or already deleted.")
+            return jsonify({"error": "Document not found"}), 404
+    except Exception as e:
+        logger.error(f"Error soft-deleting document {doc_id}: {e}", exc_info=True)
+        return jsonify({"error": "An internal error occurred"}), 500
+
+@documents_bp.route('/documents/<doc_id>/restore', methods=['POST'])
+def restore_document(doc_id):
+    """Restores a soft-deleted document."""
+    try:
+        if current_app.db.restore_document(doc_id):
+            logger.info(f"Successfully restored document with ID {doc_id}")
+            return jsonify({"message": "Document restored successfully"}), 200
+        else:
+            logger.warning(f"Restore failed: Document with ID {doc_id} not found or not deleted.")
+            return jsonify({"error": "Document not found or not in trash"}), 404
+    except Exception as e:
+        logger.error(f"Error restoring document {doc_id}: {e}", exc_info=True)
+        return jsonify({"error": "An internal error occurred"}), 500
 
 @documents_bp.route('/documents/<doc_id>/download', methods=['GET'])
 def download_document(doc_id):
@@ -108,17 +150,103 @@ def recategorize(doc_id):
     if not new_category:
         return jsonify({"error": "New category is required"}), 400
 
-    doc = db.get_document(doc_id)
-    if not doc:
+    if not db.get_document(doc_id):
         return jsonify({"error": "Document not found"}), 404
 
     db.recategorize_document(doc_id, new_category, explanation)
-    
-    fine_tuning_data = {"text": doc.get('text', ''), "category": new_category}
-    db.save_fine_tuning_data(fine_tuning_data)
 
     updated_doc = db.get_document(doc_id)
     return jsonify({"message": f"Document re-categorized to '{new_category}'", "document": updated_doc})
+
+# --- Interactive KVP Management Endpoints ---
+
+@documents_bp.route('/documents/<doc_id>/kvp/add', methods=['POST'])
+def add_kvp_interactively(doc_id):
+    """
+    Adds a single Key-Value Pair to a document, as instructed by a user
+    through the interactive chat. This action is logged for AI fine-tuning.
+    """
+    db = current_app.db
+    data = request.get_json()
+    key = data.get('key')
+    value = data.get('value')
+
+    if not key or value is None: # value can be an empty string
+        return jsonify({"error": "Both 'key' and 'value' are required"}), 400
+
+    if not db.get_document(doc_id):
+        return jsonify({"error": "Document not found"}), 404
+
+    try:
+        # This new DB function will add the KVP and log for fine-tuning
+        db.add_interactive_kvp(doc_id, key, value)
+        updated_doc = db.get_document(doc_id)
+        logger.info(f"Interactively added KVP '{key}' to document {doc_id}")
+        return jsonify({"message": "KVP added and logged for training", "document": updated_doc}), 200
+    except Exception as e:
+        logger.error(f"Error interactively adding KVP to {doc_id}: {e}", exc_info=True)
+        return jsonify({"error": "An internal error occurred"}), 500
+
+
+@documents_bp.route('/documents/<doc_id>/kvp/update', methods=['PATCH'])
+def update_kvp_interactively(doc_id):
+    """
+    Updates a single Key-Value Pair for a document, as instructed by a user
+    through the interactive chat. This action is logged for AI fine-tuning.
+    """
+    db = current_app.db
+    data = request.get_json()
+    key = data.get('key')
+    value = data.get('value')
+
+    if not key or value is None:
+        return jsonify({"error": "Both 'key' and 'value' are required"}), 400
+
+    if not db.get_document(doc_id):
+        return jsonify({"error": "Document not found"}), 404
+
+    try:
+        # This new DB function will update the KVP and log for fine-tuning
+        result = db.update_interactive_kvp(doc_id, key, value)
+        if not result:
+             return jsonify({"error": f"KVP with key '{key}' not found in document"}), 404
+        
+        updated_doc = db.get_document(doc_id)
+        logger.info(f"Interactively updated KVP '{key}' in document {doc_id}")
+        return jsonify({"message": "KVP updated and logged for training", "document": updated_doc}), 200
+    except Exception as e:
+        logger.error(f"Error interactively updating KVP in {doc_id}: {e}", exc_info=True)
+        return jsonify({"error": "An internal error occurred"}), 500
+
+
+@documents_bp.route('/documents/<doc_id>/kvp/delete', methods=['DELETE'])
+def delete_kvp_interactively(doc_id):
+    """
+    Deletes a single Key-Value Pair from a document, as instructed by a user
+    through the interactive chat. This action is logged for AI fine-tuning.
+    """
+    db = current_app.db
+    data = request.get_json()
+    key = data.get('key')
+
+    if not key:
+        return jsonify({"error": "'key' is required in the request body"}), 400
+
+    if not db.get_document(doc_id):
+        return jsonify({"error": "Document not found"}), 404
+
+    try:
+        # This new DB function will delete the KVP and log for fine-tuning
+        result = db.delete_interactive_kvp(doc_id, key)
+        if not result:
+            return jsonify({"error": f"KVP with key '{key}' not found in document"}), 404
+
+        updated_doc = db.get_document(doc_id)
+        logger.info(f"Interactively deleted KVP '{key}' from document {doc_id}")
+        return jsonify({"message": "KVP deleted and logged for training", "document": updated_doc}), 200
+    except Exception as e:
+        logger.error(f"Error interactively deleting KVP from {doc_id}: {e}", exc_info=True)
+        return jsonify({"error": "An internal error occurred"}), 500
 
 @documents_bp.route('/documents/<doc_id>/reprocess', methods=['POST'])
 def reprocess_document(doc_id):
@@ -140,13 +268,3 @@ def reprocess_document(doc_id):
         "message": "Document has been re-queued for processing.",
         "document": updated_doc
     }), 202
-
-@documents_bp.route('/documents/search', methods=['GET'])
-def search_documents():
-    db = current_app.db
-    query = request.args.get('q', '')
-    if not query:
-        return jsonify([])
-
-    results = db.search_documents(query)
-    return jsonify(results)

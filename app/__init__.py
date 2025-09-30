@@ -6,9 +6,6 @@ from .database import init_db
 from .celery_worker import make_celery
 from .logging_config import setup_logging
 
-# NOTE: The in-memory dictionaries for documents and categories are now removed.
-# The database will be the single source of truth.
-
 def create_app():
     """
     Application factory function. 
@@ -26,12 +23,9 @@ def create_app():
     app.config.from_object(Config)
 
     # 2. Initialize the database connection
-    # This function (from app/database.py) creates the MongoDatabase instance
-    # and attaches it to the app object as `app.db`.
     init_db(app)
 
     # 3. Initialize Celery
-    # We update the Celery config with the Flask app's config and create the Celery instance.
     app.config.update(
         CELERY_BROKER_URL=app.config["CELERY_BROKER_URL"],
         CELERY_RESULT_BACKEND=app.config["CELERY_RESULT_BACKEND"],
@@ -45,12 +39,17 @@ def create_app():
         pass
 
     # 4. Register Blueprints
-    # Blueprints are now registered within the app factory.
     from app.blueprints.chat import chat_bp
     from app.blueprints.documents import documents_bp
+    from app.blueprints.health import health_bp
+    from app.blueprints.categories import categories_bp
+    from app.blueprints.dashboard import dashboard_bp
 
     app.register_blueprint(chat_bp, url_prefix='/api/v1')
     app.register_blueprint(documents_bp, url_prefix='/api/v1')
+    app.register_blueprint(health_bp) # No prefix for health check
+    app.register_blueprint(categories_bp, url_prefix='/api/v1')
+    app.register_blueprint(dashboard_bp, url_prefix='/api/v1')
 
     # A simple route to test the server is running
     @app.route('/hello')

@@ -50,7 +50,7 @@ class Database(ABC):
         pass
 
     @abstractmethod
-    def get_documents(self, category=None):
+    def get_documents(self, category=None, include_deleted=False):
         pass
 
     @abstractmethod
@@ -74,6 +74,10 @@ class Database(ABC):
         pass
 
     @abstractmethod
+    def get_fine_tuning_examples(self, count: int):
+        pass
+
+    @abstractmethod
     def update_document_for_reprocessing(self, doc_id):
         pass
 
@@ -88,6 +92,31 @@ class Database(ABC):
     @abstractmethod
     def restore_document(self, doc_id):
         pass
+        
+    @abstractmethod
+    def get_all_categories(self):
+        pass
+
+    @abstractmethod
+    def create_category(self, category_name):
+        pass
+
+    @abstractmethod
+    def delete_category(self, category_name):
+        pass
+
+    @abstractmethod
+    def add_interactive_kvp(self, doc_id, key, value):
+        pass
+
+    @abstractmethod
+    def update_interactive_kvp(self, doc_id, key, value):
+        pass
+
+    @abstractmethod
+    def delete_interactive_kvp(self, doc_id, key):
+        pass
+
 
 class MongoDatabase(Database):
     """
@@ -100,6 +129,8 @@ class MongoDatabase(Database):
         self.documents = self.db.documents
         self.fine_tuning_data = self.db.fine_tuning_data
         self.audit_log = self.db.audit_log
+        self.categories = self.db.categories
+        self.kvp_corrections = self.db.kvp_corrections
         self.vector_dimensions = vector_dimensions
 
     def save_file(self, file_storage):
@@ -131,14 +162,22 @@ class MongoDatabase(Database):
         return str(result.inserted_id)
 
     def get_document(self, doc_id):
-        doc = self.documents.find_one({'_id': ObjectId(doc_id), 'deleted_at': {'$exists': False}})
+        doc = self.documents.find_one({'_id': ObjectId(doc_id)})
         return _format_document(doc)
 
-    def get_documents(self, category=None):
-        query = {'deleted_at': {'$exists': False}}
+    def get_documents(self, category=None, include_deleted=False):
+        query = {}
+        if not include_deleted:
+            query['deleted_at'] = {'$exists': False}
+        else:
+            query['deleted_at'] = {'$exists': True}
+
         if category:
-            query['category'] = category
-        
+            if category == 'Uncategorized':
+                query['category'] = None
+            else:
+                query['category'] = category
+
         docs = self.documents.find(query)
         return [_format_document(doc) for doc in docs]
 
@@ -178,14 +217,115 @@ class MongoDatabase(Database):
         )
 
     def recategorize_document(self, doc_id, new_category, explanation):
-        self.documents.update_one(
-            {'_id': ObjectId(doc_id), 'deleted_at': {'$exists': False}},
+        """
+        Updates a document's category and saves the correction as a
+        fine-tuning example for the AI.
+        """
+        # First, find the document to get its text content
+        doc = self.documents.find_one({'_id': ObjectId(doc_id), 'deleted_at': {'$exists': False}})
+        if not doc:
+            logger.error(f"Could not find document {doc_id} to recategorize.")
+            return False
+
+        # Update the document itself
+        update_result = self.documents.update_one(
+            {'_id': ObjectId(doc_id)},
             {'$set': {
                 'category': new_category,
                 'categorization_explanation': explanation,
                 'status': 'Re-categorized'
             }}
         )
+
+        if update_result.modified_count > 0:
+            # Save the successful correction as a fine-tuning example
+            if 'text' in doc and doc['text']:
+                fine_tuning_example = {
+                    "text": doc['text'],
+                    "category": new_category,
+                    "created_at": datetime.datetime.utcnow()
+                }
+                self.save_fine_tuning_data(fine_tuning_example)
+                logger.info(f"Saved fine-tuning example for doc {doc_id} with category {new_category}.")
+            else:
+                logger.warning(f"Did not save fine-tuning example for doc {doc_id} because text was missing.")
+
+            add_audit_log(doc_id, 'recategorize', {'new_category': new_category, 'explanation': explanation})
+            return True
+        
+        return False
+
+    def add_interactive_kvp(self, doc_id, key, value):
+        doc = self.documents.find_one({'_id': ObjectId(doc_id), 'deleted_at': {'$exists': False}})
+        if not doc:
+            return False
+        
+        result = self.documents.update_one(
+            {'_id': ObjectId(doc_id)},
+            {'$set': {f'kvps.{key}': value, 'status': 'Validated'}}
+        )
+
+        if result.modified_count > 0:
+            self.kvp_corrections.insert_one({
+                "doc_id": ObjectId(doc_id),
+                "doc_text": doc.get('text', ''),
+                "action": "add",
+                "key": key,
+                "new_value": value,
+                "created_at": datetime.datetime.utcnow()
+            })
+            add_audit_log(doc_id, 'add_kvp_interactive', {'key': key, 'value': value})
+            return True
+        return False
+
+    def update_interactive_kvp(self, doc_id, key, value):
+        doc = self.documents.find_one({'_id': ObjectId(doc_id), 'deleted_at': {'$exists': False}})
+        if not doc or key not in doc.get('kvps', {}):
+            return False
+            
+        old_value = doc['kvps'].get(key)
+        result = self.documents.update_one(
+            {'_id': ObjectId(doc_id)},
+            {'$set': {f'kvps.{key}': value, 'status': 'Validated'}}
+        )
+
+        if result.modified_count > 0:
+            self.kvp_corrections.insert_one({
+                "doc_id": ObjectId(doc_id),
+                "doc_text": doc.get('text', ''),
+                "action": "update",
+                "key": key,
+                "old_value": old_value,
+                "new_value": value,
+                "created_at": datetime.datetime.utcnow()
+            })
+            add_audit_log(doc_id, 'update_kvp_interactive', {'key': key, 'old_value': old_value, 'new_value': value})
+            return True
+        return False
+
+    def delete_interactive_kvp(self, doc_id, key):
+        doc = self.documents.find_one({'_id': ObjectId(doc_id), 'deleted_at': {'$exists': False}})
+        if not doc or key not in doc.get('kvps', {}):
+            return False
+
+        old_value = doc['kvps'].get(key)
+        result = self.documents.update_one(
+            {'_id': ObjectId(doc_id)},
+            {'$unset': {f'kvps.{key}': ""}, '$set': {'status': 'Validated'}}
+        )
+
+        if result.modified_count > 0:
+            self.kvp_corrections.insert_one({
+                "doc_id": ObjectId(doc_id),
+                "doc_text": doc.get('text', ''),
+                "action": "delete",
+                "key": key,
+                "old_value": old_value,
+                "created_at": datetime.datetime.utcnow()
+            })
+            add_audit_log(doc_id, 'delete_kvp_interactive', {'key': key, 'old_value': old_value})
+            return True
+        return False
 
     def update_document_for_reprocessing(self, doc_id):
         self.documents.update_one(
@@ -213,6 +353,15 @@ class MongoDatabase(Database):
 
     def save_fine_tuning_data(self, data):
         self.fine_tuning_data.insert_one(data)
+
+    def get_fine_tuning_examples(self, count: int):
+        """Retrieves a number of random fine-tuning examples from the database."""
+        pipeline = [{"$sample": {"size": count}}]
+        examples = list(self.fine_tuning_data.aggregate(pipeline))
+        for ex in examples:
+            ex.pop('_id', None)
+            ex.pop('created_at', None)
+        return examples
 
     def get_dashboard_statistics(self):
         pipeline = [
@@ -314,20 +463,42 @@ class MongoDatabase(Database):
         dashboard_data = {
             'total_documents': total_docs,
             'processing_accuracy': round(processing_accuracy, 2),
-            'avg_processing_time': round(avg_processing_time, 2) if avg_processing_time is not None else None,
+            'avg_processing_time': round(avg_processing_time, 2) if avg_time_ms is not None else None,
             'auto_classified_accuracy': round(auto_classified_accuracy, 2),
             'document_pools': stats.get('document_pools', [])
         }
 
         if stats.get('unknown_pool'):
             dashboard_data['document_pools'].append({
-                'pool_name': 'Unknown Pool',
+                'pool_name': 'Unknown',
                 'document_count': stats['unknown_pool'][0]['document_count'],
                 'status': 'pending',
                 'accuracy': 0
             })
 
         return dashboard_data
+
+    def get_all_categories(self):
+        categories_cursor = self.categories.find({}, {"_id": 0, "name": 1}).sort("name")
+        return [category["name"] for category in categories_cursor]
+
+    def create_category(self, category_name):
+        if self.categories.find_one({"name": category_name}):
+            return False
+        self.categories.insert_one({"name": category_name})
+        return True
+
+    def delete_category(self, category_name):
+        if not self.categories.find_one({"name": category_name}):
+            return "not_found"
+
+        if self.documents.find_one({"category": category_name, "deleted_at": {"$exists": False}}):
+            return "in_use"
+
+        result = self.categories.delete_one({"name": category_name})
+        if result.deleted_count > 0:
+            return "deleted"
+        return "not_found"
 
     def create_vector_search_index(self):
         index_name = "vector_index"

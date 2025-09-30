@@ -3,10 +3,11 @@ import json
 import logging
 import openpyxl
 import docx
+import os
 from PyPDF2 import PdfReader
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
-from langchain_openai import ChatOpenAI # Example provider
+from langchain_community.chat_models import ChatOllama
 
 logger = logging.getLogger(__name__)
 
@@ -56,38 +57,35 @@ def get_doc_text(file_content, content_type):
 
 # --- AI-Powered Extraction Functions ---
 
-def get_kvps_and_category(text: str):
+def get_kvps_and_category(text: str, examples: list = []):
     """
-    Extracts Key-Value Pairs (KVPs) and determines a category from the text
-    by calling a Large Language Model (LLM).
+    Extracts Key-Value Pairs (KVPs) and determines a category from the text,
+    guided by provided examples.
     """
-    logger.info("Initializing LLM call to extract KVPs and category.")
+    logger.info("Initializing local LLM call to extract KVPs and category.")
 
     if not text or not text.strip():
         logger.warning("Input text is empty. Skipping LLM call.")
         return {}, None
 
-    # --- LLM and Prompt Configuration ---
-    # NOTE: Replace 'ChatOpenAI' with your desired provider (e.g., ChatGooglePalm, ChatAnthropic).
-    # Ensure you have set the required environment variables (e.g., OPENAI_API_KEY).
-    try:
-        llm = ChatOpenAI(model="gpt-3.5-turbo-1106", temperature=0)
-    except Exception as e:
-        logger.error(f"Failed to initialize the LLM. Ensure your API key is set and the provider is available. Error: {e}", exc_info=True)
-        # Fail gracefully if the LLM can't be loaded
-        raise ConnectionError("Could not connect to the specified AI model provider.") from e
-
-    # This prompt template instructs the LLM to act as a document analyzer
-    # and return a JSON object with a specific structure.
-    prompt = ChatPromptTemplate.from_messages(
-        [
-            (
-                "system",
-                """You are an expert document analysis AI. Your task is to analyze the user's document text and perform two actions:
-1.  **Categorize the Document**: Classify the document into one of the following categories: 'Invoice', 'Contract', 'Resume', 'Purchase Order', or 'Unknown'.
+    # --- Construct the System Prompt ---
+    system_prompt = """You are an expert document analysis AI. Your task is to analyze the user's document text and perform two actions:
+1.  **Categorize the Document**: Classify the document into a relevant category.
 2.  **Extract Key-Value Pairs (KVPs)**: Identify and extract important information from the document as key-value pairs.
 
-You MUST return the output as a single, valid JSON object with two keys: 'category' and 'kvps'. The 'kvps' value must be a JSON object itself. Do not provide any other text, explanation, or markdown formatting.
+You MUST return the output as a single, valid JSON object with two keys: 'category' and 'kvps'. The 'kvps' value must be a JSON object itself. Do not provide any other text, explanation, or markdown formatting."""
+
+    # --- Inject Fine-Tuning Examples into the Prompt ---
+    if examples:
+        example_str = "\n\nHere are some examples of how to categorize documents correctly:\n"
+        for ex in examples:
+            # We truncate the example text to keep the prompt concise
+            truncated_text = (ex['text'][:200] + '...') if len(ex['text']) > 200 else ex['text']
+            example_str += f"- Document text starting with: '{truncated_text}' should be categorized as '{ex['category']}'.\n"
+        
+        system_prompt += example_str
+    
+    system_prompt += """\n\nNow, analyze the following document. Remember to only return the final JSON object.
 
 Example output format:
 {
@@ -97,32 +95,50 @@ Example output format:
     "customer_name": "John Doe",
     "total_amount": "500.00"
   }
-}
-""",
-            ),
+}"""
+
+    # --- LLM and Prompt Configuration ---
+
+    try:
+        # Connect to the local LLM using Ollama
+        llm = ChatOllama(
+            base_url=os.environ.get("OLLAMA_BASE_URL"),
+            model=os.environ.get("CHAT_MODEL_NAME", "phi3:mini"),
+            temperature=0
+        )
+    except Exception as e:
+        logger.error(f"Failed to initialize the Ollama LLM. Ensure Ollama is running and accessible. Error: {e}", exc_info=True)
+        raise ConnectionError("Could not connect to the local AI model via Ollama.") from e
+
+    prompt = ChatPromptTemplate.from_messages(
+        [
+            ("system", system_prompt),
             ("user", "{input_text}"),
         ]
     )
 
-    # The chain combines the prompt, the LLM, and an output parser.
     chain = prompt | llm | StrOutputParser()
 
     # --- Invoke the Chain and Parse the Output ---
-    logger.info("Invoking LLM chain for analysis...")
+    logger.info("Invoking local LLM chain for analysis...")
     try:
         llm_response = chain.invoke({"input_text": text})
         logger.debug(f"Raw LLM response: {llm_response}")
         
-        # Parse the JSON string response from the LLM
+        # Clean the response to ensure it's valid JSON
+        # Local models sometimes add extra text or formatting
+        if "```json" in llm_response:
+            llm_response = llm_response.split("```json")[1].split("```")[0]
+        
         result = json.loads(llm_response)
         kvps = result.get("kvps", {})
-        category = result.get("category", "Unknown")
+        category = result.get("category")
 
         if not isinstance(kvps, dict):
             logger.warning("LLM output for 'kvps' was not a dictionary. Defaulting to empty.")
             kvps = {}
 
-        logger.info(f"LLM analysis successful. Category='{category}'.")
+        logger.info(f"LLM analysis successful. Suggested Category='{category}'.")
         return kvps, category
 
     except json.JSONDecodeError as e:

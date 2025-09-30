@@ -1,58 +1,112 @@
-import faiss
-from sentence_transformers import SentenceTransformer
-import numpy as np
+import logging
+from typing import Any, Iterable, List, Optional
+from langchain.vectorstores.base import VectorStore
+from langchain.schema.embeddings import Embeddings
+from langchain.schema.document import Document
+from bson import ObjectId
 
-# 1. Initialize the embedding model
-embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
+logger = logging.getLogger(__name__)
 
-# 2. Get the embedding dimension
-dimension = embedding_model.get_sentence_embedding_dimension()
+# --- Global Vector Store ---
+# This will hold the single, shared instance of the MongoVectorStore.
+g_vector_store = None
 
-# 3. Initialize the FAISS index
-# We use IndexFlatL2, which is a simple and effective index for dense vectors.
-faiss_index = faiss.IndexFlatL2(dimension)
-
-# In-memory store for the actual text chunks
-document_chunks = []
-
-def add_text_to_index(text, doc_id):
+def get_vector_store(db_client, embeddings_model):
     """
-    Chunks the text, generates embeddings, and adds them to the FAISS index.
+    Returns a global instance of the MongoVectorStore.
     """
-    # Simple chunking strategy (e.g., by paragraph)
-    chunks = text.split('\n')
-    chunks = [chunk for chunk in chunks if chunk.strip()] # Remove empty chunks
+    global g_vector_store
+    if g_vector_store is None:
+        g_vector_store = MongoVectorStore(db_client, embeddings_model)
+    return g_vector_store
 
-    if not chunks:
-        return
 
-    # Generate embeddings for the chunks
-    embeddings = embedding_model.encode(chunks)
-
-    # Add embeddings to the FAISS index
-    faiss_index.add(np.array(embeddings, dtype=np.float32))
-
-    # Store the chunks with their corresponding document ID
-    for chunk in chunks:
-        document_chunks.append({"doc_id": doc_id, "chunk": chunk})
-
-def search_index(query, k=5):
+class MongoVectorStore(VectorStore):
     """
-    Searches the FAISS index for the most relevant chunks to a query.
+    A custom LangChain VectorStore that uses MongoDB as the backend.
+    It uses the `$vectorSearch` aggregation pipeline for similarity searches.
     """
-    if faiss_index.ntotal == 0:
-        return []
+    def __init__(self, db_client: Any, embeddings_model: Embeddings, collection_name: str = 'documents', index_name: str = "vector_index"):
+        self._db_client = db_client
+        self._collection = self._db_client.db[collection_name]
+        self._embeddings = embeddings_model
+        self._index_name = index_name
+        logger.info("MongoVectorStore initialized.")
+
+    def add_texts(self, texts: Iterable[str], metadatas: Optional[List[dict]] = None, **kwargs: Any) -> List[str]:
+        """This method is not used in this application, as documents are added via the database methods."""
+        logger.warning("add_texts is not implemented for this vector store.")
+        raise NotImplementedError("Adding texts directly is not supported.")
+
+    def similarity_search(
+        self, query: str, k: int = 4, filter: Optional[dict] = None, **kwargs: Any
+    ) -> List[Document]:
+        """
+        Performs a similarity search in MongoDB using the $vectorSearch aggregation stage.
+
+        Args:
+            query: The text to search for.
+            k: The number of results to return.
+            filter: An optional MongoDB filter to apply before the vector search.
+
+        Returns:
+            A list of LangChain Document objects matching the search.
+        """
+        logger.info(f"Performing similarity search for query: '{query[:30]}...'")
+        query_embedding = self._embeddings.embed_query(query)
+
+        # Base filter excludes soft-deleted documents by default
+        pre_filter = {"deleted_at": {"$exists": False}}
+        if filter:
+            pre_filter.update(filter)
+
+        pipeline = [
+            {
+                "$vectorSearch": {
+                    "index": self._index_name,
+                    "path": "embedding",
+                    "queryVector": query_embedding,
+                    "numCandidates": 150,
+                    "limit": k,
+                    "filter": pre_filter
+                }
+            },
+            {
+                "$project": {
+                    "_id": 1,
+                    "filename": 1,
+                    "text": 1, # The raw text content of the document
+                    "category": 1,
+                    "score": {"$meta": "vectorSearchScore"}
+                }
+            }
+        ]
+
+        try:
+            results = list(self._collection.aggregate(pipeline))
+            logger.info(f"Found {len(results)} documents in vector search.")
+        except Exception as e:
+            logger.error(f"Error during MongoDB vector search: {e}", exc_info=True)
+            # This can happen if the index is not ready or the query is malformed.
+            return []
         
-    # Generate embedding for the query
-    query_embedding = embedding_model.encode([query])
+        # Convert MongoDB documents to LangChain's Document format
+        documents = []
+        for res in results:
+            doc = Document(
+                page_content=res.get('text', ''),
+                metadata={
+                    'doc_id': str(res.get('_id')),
+                    'filename': res.get('filename', 'N/A'),
+                    'category': res.get('category', 'N/A'),
+                    'score': res.get('score')
+                }
+            )
+            documents.append(doc)
 
-    # Search the index
-    distances, indices = faiss_index.search(np.array(query_embedding, dtype=np.float32), k)
+        return documents
 
-    # Retrieve the relevant chunks
-    results = []
-    for i in indices[0]:
-        if i < len(document_chunks):
-            results.append(document_chunks[i])
-
-    return results
+    @classmethod
+    def from_texts(cls, *args, **kwargs):
+        """This method is not applicable for this implementation."""
+        raise NotImplementedError("from_texts is not supported.")

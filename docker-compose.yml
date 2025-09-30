@@ -1,24 +1,81 @@
 version: '3.8'
-services:
-  zookeeper:
-    image: confluentinc/cp-zookeeper:7.0.1
-    container_name: zookeeper
-    environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
 
-  kafka:
-    image: confluentinc/cp-kafka:7.0.1
-    container_name: kafka
+services:
+  # MongoDB Service
+  mongo:
+    image: mongo:6.0 # Using a specific version for stability
+    container_name: mongo_db
     ports:
-      - "9092:9092"
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Service (for Celery)
+  redis:
+    image: redis:7.0-alpine
+    container_name: redis_broker
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Main Flask Application (API)
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: flask_api
+    ports:
+      - "8000:8000"
     depends_on:
-      - zookeeper
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env # Pass environment variables from a .env file
     environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,PLAINTEXT_INTERNAL://kafka:29092
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      - FLASK_ENV=production
+      # Point to the Docker network hostnames for dependencies
+      - MONGO_URI=mongodb://mongo:27017/doc_analyzer_db
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      # Ollama host is assumed to be on the host machine
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+    # The command to run the production server (Gunicorn)
+    command: gunicorn --bind 0.0.0.0:8000 "main:app"
+
+  # Celery Worker Service
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: celery_worker
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      - MONGO_URI=mongodb://mongo:2701f7/doc_analyzer_db
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+    # The command to start the Celery worker
+    command: celery -A main.celery worker --loglevel=info
+
+volumes:
+  mongo_data:
+  redis_data:

@@ -59,8 +59,8 @@ graph TD
 *   **Role**: Manages background task execution.
 *   **Responsibilities**:
     *   **Celery Worker**: Executes the document processing pipeline asynchronously. This includes text extraction, calling the AI service, generating embeddings, and updating the database.
-    *   **Redis**: Acts as the message broker, holding the queue of tasks for Celery workers to consume.
-*   **Key Libraries**: Celery, Redis.
+    *   **Redis**: Acts as the lightweight message broker, holding the queue of tasks for Celery workers to consume. Its speed and simplicity make it an ideal choice for this purpose.
+*   **Key Libraries**: Celery, redis.
 
 ### 3. MongoDB
 
@@ -70,7 +70,7 @@ graph TD
     *   **`documents` Collection**: Stores metadata for each document, including filename, content type, status (`PENDING`, `PROCESSING`, `COMPLETED`, `FAILED`), extracted key-value pairs, and the document category.
     *   **`documents_audit` Collection**: Provides a full audit trail for each document, logging every status change and action. This supports traceability and debugging.
     *   **`documents` Vector Index**: A MongoDB Vector Search index is built on the `embedding` field. This enables efficient and scalable semantic search over the document content.
-*   **Key Libraries**: Pymongo, GridFS.
+*   **Key Libraries**: Pymongo.
 
 ### 4. AI Integration
 

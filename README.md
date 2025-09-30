@@ -2,12 +2,12 @@
 
 This project is a sophisticated, AI-powered Flask API for managing and understanding documents. It provides a complete, end-to-end solution for uploading documents, processing them asynchronously, extracting key information, and conversing with them through a chat interface.
 
-Built on a modern, scalable architecture, it leverages MongoDB Atlas for data persistence and Apache Kafka for message queuing.
+Built on a modern, scalable architecture, it leverages MongoDB Atlas for data persistence and Redis for message queuing.
 
 ## Key Features
 
 - **Document Upload**: Securely upload documents (PDF, DOCX, TXT, etc.) via a REST API.
-- **Asynchronous AI Processing**: Offloads heavy AI tasks to a Celery worker using Kafka, ensuring the API remains responsive and fault-tolerant.
+- **Asynchronous AI Processing**: Offloads heavy AI tasks to a Celery worker using Redis, ensuring the API remains responsive and fault-tolerant.
 - **MongoDB Atlas**: The single source of truth for all data, including file storage (GridFS), metadata, and vector embeddings.
 - **Conversational AI Chat**: A powerful chat endpoint uses MongoDB Atlas Vector Search to find relevant documents and a Large Language Model (LLM) to answer questions.
 - **Failure Recovery**: An endpoint to re-trigger the AI processing for documents that may have failed.
@@ -18,13 +18,13 @@ Built on a modern, scalable architecture, it leverages MongoDB Atlas for data pe
 ### Prerequisites
 
 1.  **MongoDB Atlas Account**: A MongoDB Atlas cluster with Vector Search enabled is required.
-2.  **Apache Kafka**: A running Kafka broker. You can run this locally using Docker or use a managed cloud service.
+2.  **Redis**: A running Redis server. You can run this locally using Docker or use a managed cloud service.
 3.  **Project Dependencies**: The required Python packages are listed in `requirements.txt`.
 
 ### 1. Configure Environment Variables
 
 1.  Copy the example file: `cp .env.example .env`
-2.  Edit `.env` and set the `MONGO_URI` and `KAFKA_BROKER_URL` to your service addresses.
+2.  Edit `.env` and set the `MONGO_URI` and `CELERY_BROKER_URL` to your service addresses.
 
 ### 2. Activate the Virtual Environment
 
@@ -37,8 +37,8 @@ source .venv/bin/activate
 You need to run the services in separate terminals:
 
 -   **Terminal 1: Flask Server**: `./devserver.sh`
--   **Terminal 2: Celery Worker**: `celery -A celery_worker.celery_app worker --loglevel=info`
--   **Terminal 3 (if running locally): Kafka Broker**: Ensure your Kafka server is running.
+-   **Terminal 2: Celery Worker**: `celery -A main.celery worker --loglevel=info`
+-   **Terminal 3 (if running locally): Redis Server**: Ensure your Redis server is running.
 
 ## API Endpoints
 
