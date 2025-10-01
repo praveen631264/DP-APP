@@ -4,13 +4,11 @@ werkzeug
 flask-cors
 celery
 langchain
-sentence-transformers
+langchain-community
+ollama
 pymongo
 PyPDF2
 python-docx
 openpyxl
-kafka-python==1.4.7
-gridfs
 gunicorn
-langchain-community
-ollama
+pdfplumber

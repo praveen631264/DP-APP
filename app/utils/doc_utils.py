@@ -4,32 +4,55 @@ import logging
 import openpyxl
 import docx
 import os
-from PyPDF2 import PdfReader
+import pdfplumber
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_community.chat_models import ChatOllama
 
 logger = logging.getLogger(__name__)
 
-# --- Text Extraction Functions ---
+# --- Text and Word-Level Data Extraction ---
 
-def get_doc_text(file_content, content_type):
+def extract_text_with_positions(file_content, content_type):
     """
-    Extracts text from a document's byte content based on its MIME type.
+    Extracts text and word-level positional data (bounding boxes) from a document.
+    For PDFs, it uses pdfplumber. For other types, it falls back to basic text extraction
+    and does not provide positional data.
+    Returns a tuple: (full_text, word_map)
+    - full_text: The complete extracted text of the document.
+    - word_map: A list of dictionaries, where each dictionary represents a word and
+                contains 'text' and its 'bbox' (bounding box) coordinates.
+                Example: [{"text": "Hello", "bbox": [x0, top, x1, bottom]}, ...]
+                The bbox is only available for PDFs.
     """
-    logger.info(f"Extracting text for content type: {content_type}")
-    text = ""
+    logger.info(f"Extracting text and positions for content type: {content_type}")
+    full_text = ""
+    word_map = []
+
     try:
         file_stream = io.BytesIO(file_content)
-        
+
         if "pdf" in content_type:
-            reader = PdfReader(file_stream)
-            for page in reader.pages:
-                text += page.extract_text() or ""
+            with pdfplumber.open(file_stream) as pdf:
+                for i, page in enumerate(pdf.pages):
+                    page_text = page.extract_text() or ""
+                    full_text += page_text + "\n"
+                    
+                    # Get word-level bounding boxes
+                    words = page.extract_words()
+                    for word in words:
+                        word_map.append({
+                            "text": word["text"],
+                            "bbox": [word["x0"], word["top"], word["x1"], word["bottom"]],
+                            "page": i + 1
+                        })
+        
         elif "vnd.openxmlformats-officedocument.wordprocessingml.document" in content_type: # .docx
             doc = docx.Document(file_stream)
             for para in doc.paragraphs:
-                text += para.text + "\n"
+                full_text += para.text + "\n"
+            # Word-level data is not available for .docx with this library
+        
         elif "vnd.openxmlformats-officedocument.spreadsheetml.sheet" in content_type: # .xlsx
             workbook = openpyxl.load_workbook(file_stream)
             for sheet_name in workbook.sheetnames:
@@ -37,57 +60,44 @@ def get_doc_text(file_content, content_type):
                 for row in sheet.iter_rows():
                     for cell in row:
                         if cell.value:
-                            text += str(cell.value) + " "
-                    text += "\n"
+                            full_text += str(cell.value) + " "
+                    full_text += "\n"
+            # Word-level data is not available for .xlsx
+
         elif "text" in content_type:
-            text = file_content.decode('utf-8', errors='ignore')
+            full_text = file_content.decode('utf-8', errors='ignore')
+            # Word-level data is not available for plain text
+        
         else:
-            logger.warning(f"Unsupported content type for text extraction: {content_type}. Trying plain text decode.")
-            text = file_content.decode('utf-8', errors='ignore')
+            logger.warning(f"Unsupported content type for positional extraction: {content_type}. Falling back to plain text.")
+            full_text = file_content.decode('utf-8', errors='ignore')
 
     except Exception as e:
-        logger.error(f"Error extracting text for content_type {content_type}: {e}", exc_info=True)
-        return "" 
+        logger.error(f"Error extracting text/positions for {content_type}: {e}", exc_info=True)
+        return "", []
 
-    if not text.strip():
+    if not full_text.strip():
         logger.warning(f"Could not extract any text for content_type: {content_type}")
 
-    return text.strip()
+    return full_text.strip(), word_map
 
 
-# --- AI-Powered Extraction Functions ---
+# --- AI-Powered KVP Extraction with Positional Matching ---
 
-def get_kvps_and_category(text: str, examples: list = []):
+def get_kvps_and_category_with_positions(text: str, word_map: list, examples: list = []):
     """
-    Extracts Key-Value Pairs (KVPs) and determines a category from the text,
-    guided by provided examples.
+    Extracts Key-Value Pairs (KVPs), determines a category, and finds the bounding box
+    for each KVP value using the word map.
     """
     logger.info("Initializing local LLM call to extract KVPs and category.")
-
-    if not text or not text.strip():
-        logger.warning("Input text is empty. Skipping LLM call.")
-        return {}, None
-
-    # --- Construct the System Prompt ---
-    system_prompt = """You are an expert document analysis AI. Your task is to analyze the user's document text and perform two actions:
-1.  **Categorize the Document**: Classify the document into a relevant category.
-2.  **Extract Key-Value Pairs (KVPs)**: Identify and extract important information from the document as key-value pairs.
-
-You MUST return the output as a single, valid JSON object with two keys: 'category' and 'kvps'. The 'kvps' value must be a JSON object itself. Do not provide any other text, explanation, or markdown formatting."""
-
-    # --- Inject Fine-Tuning Examples into the Prompt ---
-    if examples:
-        example_str = "\n\nHere are some examples of how to categorize documents correctly:\n"
-        for ex in examples:
-            # We truncate the example text to keep the prompt concise
-            truncated_text = (ex['text'][:200] + '...') if len(ex['text']) > 200 else ex['text']
-            example_str += f"- Document text starting with: '{truncated_text}' should be categorized as '{ex['category']}'.\n"
-        
-        system_prompt += example_str
     
-    system_prompt += """\n\nNow, analyze the following document. Remember to only return the final JSON object.
+    if not text or not text.strip():
+        return {}, None, None
 
-Example output format:
+    system_prompt = """You are an expert document analysis AI. Analyze the document text to categorize it and extract key-value pairs (KVPs).
+Return a single, valid JSON object with 'category' and 'kvps'. The 'kvps' must be a JSON object.
+
+Example output:
 {
   "category": "Invoice",
   "kvps": {
@@ -97,54 +107,84 @@ Example output format:
   }
 }"""
 
-    # --- LLM and Prompt Configuration ---
-
     try:
-        # Connect to the local LLM using Ollama
         llm = ChatOllama(
             base_url=os.environ.get("OLLAMA_BASE_URL"),
             model=os.environ.get("CHAT_MODEL_NAME", "phi3:mini"),
             temperature=0
         )
     except Exception as e:
-        logger.error(f"Failed to initialize the Ollama LLM. Ensure Ollama is running and accessible. Error: {e}", exc_info=True)
-        raise ConnectionError("Could not connect to the local AI model via Ollama.") from e
+        logger.error(f"Failed to initialize Ollama: {e}", exc_info=True)
+        raise ConnectionError("Could not connect to the local AI model.") from e
 
-    prompt = ChatPromptTemplate.from_messages(
-        [
-            ("system", system_prompt),
-            ("user", "{input_text}"),
-        ]
-    )
-
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", system_prompt),
+        ("user", "{input_text}"),
+    ])
     chain = prompt | llm | StrOutputParser()
 
-    # --- Invoke the Chain and Parse the Output ---
-    logger.info("Invoking local LLM chain for analysis...")
+    logger.info("Invoking LLM chain for analysis...")
     try:
         llm_response = chain.invoke({"input_text": text})
         logger.debug(f"Raw LLM response: {llm_response}")
         
-        # Clean the response to ensure it's valid JSON
-        # Local models sometimes add extra text or formatting
         if "```json" in llm_response:
             llm_response = llm_response.split("```json")[1].split("```")[0]
         
         result = json.loads(llm_response)
-        kvps = result.get("kvps", {})
+        kvps_raw = result.get("kvps", {})
         category = result.get("category")
+        explanation = result.get("explanation", "")
 
-        if not isinstance(kvps, dict):
-            logger.warning("LLM output for 'kvps' was not a dictionary. Defaulting to empty.")
-            kvps = {}
+        if not isinstance(kvps_raw, dict):
+            kvps_raw = {}
 
-        logger.info(f"LLM analysis successful. Suggested Category='{category}'.")
-        return kvps, category
+        # Find bounding boxes for each KVP value
+        kvps_with_bbox = {k: {"value": v, "bbox": find_bbox_for_value(v, word_map)} for k, v in kvps_raw.items()}
 
-    except json.JSONDecodeError as e:
-        logger.error(f"Failed to parse JSON response from LLM: {e}", exc_info=True)
-        logger.error(f"Problematic LLM Output: {llm_response}")
-        raise ValueError("LLM returned malformed JSON.") from e
+        logger.info(f"LLM analysis successful. Category='{category}'.")
+        return kvps_with_bbox, category, explanation
+
     except Exception as e:
-        logger.error(f"An unexpected error occurred during LLM chain invocation: {e}", exc_info=True)
+        logger.error(f"Error during LLM processing or bbox mapping: {e}", exc_info=True)
         raise
+
+
+def find_bbox_for_value(value: str, word_map: list):
+    """
+    Finds a bounding box that encapsulates the given value string by searching for
+    the sequence of words in the word_map.
+    Returns the combined bounding box of the word sequence or None.
+    """
+    if not value or not isinstance(value, str) or not word_map:
+        return None
+
+    search_words = value.strip().split()
+    if not search_words:
+        return None
+
+    for i in range(len(word_map) - len(search_words) + 1):
+        match = True
+        for j in range(len(search_words)):
+            if word_map[i + j]["text"] != search_words[j]:
+                match = False
+                break
+        
+        if match:
+            # Found the sequence, now combine bounding boxes
+            first_word = word_map[i]
+            last_word = word_map[i + len(search_words) - 1]
+            
+            # Assuming words are on the same page
+            if first_word["page"] != last_word["page"]:
+                continue
+
+            bbox = [
+                min(w["bbox"][0] for w in word_map[i:i+len(search_words)]),
+                min(w["bbox"][1] for w in word_map[i:i+len(search_words)]),
+                max(w["bbox"][2] for w in word_map[i:i+len(search_words)]),
+                max(w["bbox"][3] for w in word_map[i:i+len(search_words)])
+            ]
+            return {"page": first_word["page"], "bbox": bbox}
+
+    return None # Not found

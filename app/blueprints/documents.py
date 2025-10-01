@@ -59,6 +59,14 @@ def get_documents():
     docs = db.get_documents(category=category, include_deleted=include_deleted)
     return jsonify(docs)
 
+@documents_bp.route('/documents/recent', methods=['GET'])
+def get_recent_documents():
+    """Fetches the most recently uploaded documents."""
+    db = current_app.db
+    limit = request.args.get('limit', 5, type=int)
+    docs = db.get_recent_documents(limit=limit)
+    return jsonify(docs)
+
 @documents_bp.route('/documents/search', methods=['GET'])
 def search_documents():
     db = current_app.db

@@ -1,8 +1,9 @@
 import logging
+import json
 from flask import Blueprint, request, jsonify, current_app
 from langchain.chains import ConversationalRetrievalChain
 from app.vector_store import get_vector_store # Centralized vector store access
-from app.ai_models import get_llm, get_embeddings # Centralized model access
+from app.ai_models import get_llm, get_embeddings, get_document_chat_agent # Centralized model access
 
 chat_bp = Blueprint('chat_bp', __name__)
 logger = logging.getLogger(__name__)
@@ -66,3 +67,51 @@ def chat_with_doc():
     except Exception as e:
         logger.error(f"Error during chat processing: {e}", exc_info=True)
         return jsonify({"error": "An internal error occurred while processing your chat message."}), 500
+
+@chat_bp.route('/documents/<doc_id>/chat', methods=['POST'])
+def document_specific_chat(doc_id):
+    """
+    Handles interactive chat for a single document, with the ability for the AI
+    to propose KVP modifications.
+    """
+    data = request.get_json()
+    query = data.get('query')
+    # chat_history is not used by the agent but is included for future use.
+    chat_history = data.get('chat_history', []) 
+
+    if not query:
+        logger.warning(f"Document chat request for {doc_id} with no query.")
+        return jsonify({"error": "Query is required"}), 400
+
+    db = current_app.db
+    doc = db.get_document(doc_id)
+    if not doc or not doc.get('text'):
+        logger.error(f"Could not find document or its text content for doc_id: {doc_id}")
+        return jsonify({"error": "Document not found or not processed"}), 404
+
+    try:
+        llm = get_llm()
+        
+        # The document text is passed to the agent prompt.
+        agent_executor = get_document_chat_agent(llm, doc['text'])
+        
+        logger.info(f"Invoking document agent for doc {doc_id} with query: '{query[:50]}...'")
+        # The agent returns either a final answer or a proposed KVP modification.
+        result = agent_executor.invoke({"input": query, "chat_history": chat_history})
+        
+        output = result.get('output')
+
+        try:
+            # If the agent proposes a KVP change, the output will be a JSON string.
+            proposed_action = json.loads(output)
+            response = {"proposed_action": proposed_action}
+            logger.info(f"Agent for doc {doc_id} proposed an action: {proposed_action}")
+        except (json.JSONDecodeError, TypeError):
+            # Otherwise, it's a standard text answer.
+            response = {"answer": output}
+
+        return jsonify(response)
+
+    except Exception as e:
+        logger.error(f"Error during document-specific chat processing for {doc_id}: {e}", exc_info=True)
+        return jsonify({"error": "An internal error occurred"}), 500

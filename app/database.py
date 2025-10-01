@@ -54,6 +54,10 @@ class Database(ABC):
         pass
 
     @abstractmethod
+    def get_recent_documents(self, limit=5):
+        pass
+
+    @abstractmethod
     def search_documents(self, query):
         pass
 
@@ -181,6 +185,12 @@ class MongoDatabase(Database):
         docs = self.documents.find(query)
         return [_format_document(doc) for doc in docs]
 
+    def get_recent_documents(self, limit=5):
+        """Fetches the most recent documents."""
+        query = {'deleted_at': {'$exists': False}}
+        docs = self.documents.find(query).sort('created_at', -1).limit(limit)
+        return [_format_document(doc) for doc in docs]
+
     def search_documents(self, query):
         regex = re.compile(f'.*{re.escape(query)}.*', re.IGNORECASE)
         search_query = {
@@ -191,7 +201,7 @@ class MongoDatabase(Database):
         docs = self.documents.find(search_query)
         return [_format_document(doc) for doc in docs]
 
-    def update_document_status(self, doc_id, status, kvps, category, text, embedding):
+    def update_document_status(self, doc_id, status, kvps, category, text, embedding, word_map=None, explanation=None):
         update_data = {
             'status': status,
             'kvps': kvps,
@@ -199,6 +209,11 @@ class MongoDatabase(Database):
             'text': text,
             'embedding': embedding
         }
+        if word_map is not None:
+            update_data['word_map'] = word_map
+        if explanation is not None:
+            update_data['categorization_explanation'] = explanation
+
         if status == 'Processed':
             update_data['processed_at'] = datetime.datetime.utcnow()
 
@@ -208,12 +223,14 @@ class MongoDatabase(Database):
         )
 
     def update_document_kvp(self, doc_id, new_kvps):
+        # When a KVP is manually updated, we expect the new value and potentially a new bbox.
+        # The update should be structured to handle the nested KVP object.
+        update_payload = {f"kvps.{key}": value for key, value in new_kvps.items()}
+        update_payload['status'] = 'Validated'
+
         self.documents.update_one(
             {'_id': ObjectId(doc_id), 'deleted_at': {'$exists': False}},
-            {'$set': {
-                'kvps': new_kvps,
-                'status': 'Validated'
-            }}
+            {'$set': update_payload}
         )
 
     def recategorize_document(self, doc_id, new_category, explanation):
@@ -260,9 +277,10 @@ class MongoDatabase(Database):
         if not doc:
             return False
         
+        # For additions, bbox will be null as it's not AI-extracted.
         result = self.documents.update_one(
             {'_id': ObjectId(doc_id)},
-            {'$set': {f'kvps.{key}': value, 'status': 'Validated'}}
+            {'$set': {f'kvps.{key}': {"value": value, "bbox": None}, 'status': 'Validated'}}
         )
 
         if result.modified_count > 0:
@@ -283,10 +301,13 @@ class MongoDatabase(Database):
         if not doc or key not in doc.get('kvps', {}):
             return False
             
-        old_value = doc['kvps'].get(key)
+        old_value_obj = doc['kvps'].get(key, {})
+        old_value = old_value_obj.get('value')
+        
+        # When updating, we just update the value, not the bbox.
         result = self.documents.update_one(
             {'_id': ObjectId(doc_id)},
-            {'$set': {f'kvps.{key}': value, 'status': 'Validated'}}
+            {'$set': {f'kvps.{key}.value': value, 'status': 'Validated'}}
         )
 
         if result.modified_count > 0:
@@ -308,7 +329,9 @@ class MongoDatabase(Database):
         if not doc or key not in doc.get('kvps', {}):
             return False
 
-        old_value = doc['kvps'].get(key)
+        old_value_obj = doc['kvps'].get(key, {})
+        old_value = old_value_obj.get('value')
+
         result = self.documents.update_one(
             {'_id': ObjectId(doc_id)},
             {'$unset': {f'kvps.{key}': ""}, '$set': {'status': 'Validated'}}
@@ -492,7 +515,7 @@ class MongoDatabase(Database):
         if not self.categories.find_one({"name": category_name}):
             return "not_found"
 
-        if self.documents.find_one({"category": category_name, "deleted_at": {"$exists": False}}):
+        if self.documents.find_one({"category": category_name, "deleted_at": {'$exists': False}}):
             return "in_use"
 
         result = self.categories.delete_one({"name": category_name})

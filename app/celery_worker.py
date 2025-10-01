@@ -1,7 +1,7 @@
 import logging
 from celery import Celery
 from flask import current_app, Flask
-from app.utils.doc_utils import extract_text, extract_kvps_and_category
+from app.utils.doc_utils import extract_text_with_positions, get_kvps_and_category_with_positions
 from app.ai_models import get_llm, get_embeddings
 from app.database import Database
 
@@ -50,19 +50,18 @@ def process_document_task(self, doc_id: str):
             logger.error(f"File content for doc ID {doc_id} not found. Aborting.")
             return
 
-        # 1. Extract Text
-        logger.info(f"Step 1/4: Extracting text from '{doc['filename']}'.")
-        text = extract_text(file_content, doc['content_type'])
+        # 1. Extract Text and Word-level Positional Data
+        logger.info(f"Step 1/4: Extracting text and positions from '{doc['filename']}'.")
+        text, word_map = extract_text_with_positions(file_content, doc['content_type'])
         if not text:
             db.update_document_status(doc_id, "Error", {}, None, "Failed to extract text.", None)
             logger.warning(f"Could not extract text from '{doc['filename']}'.")
             return
 
-        # 2. Extract Key-Value Pairs and Category
+        # 2. Extract Key-Value Pairs, Category, and map Bounding Boxes
         logger.info(f"Step 2/4: Extracting KVPs and category for '{doc['filename']}'.")
-        llm = get_llm()
         all_categories = db.get_all_categories()
-        kvps, category_name, explanation = extract_kvps_and_category(text, all_categories, llm)
+        kvps, category_name, explanation = get_kvps_and_category_with_positions(text, word_map, all_categories)
 
         # 3. Generate Embeddings
         logger.info(f"Step 3/4: Generating embeddings for '{doc['filename']}'.")
@@ -77,7 +76,9 @@ def process_document_task(self, doc_id: str):
             kvps=kvps,
             category=category_name,
             text=text,
-            embedding=embedding
+            embedding=embedding,
+            word_map=word_map,
+            explanation=explanation
         )
 
         logger.info(f"[TASK_SUCCESS] Successfully processed document ID: {doc_id}")

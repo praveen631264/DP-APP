@@ -3,6 +3,9 @@ import threading
 from flask import current_app
 from langchain_community.chat_models import ChatOllama
 from langchain.embeddings import HuggingFaceEmbeddings
+from langchain.agents import AgentExecutor, create_react_agent
+from langchain import hub
+from app.agents import propose_add_kvp, propose_update_kvp, propose_delete_kvp
 
 # --- Globals for AI Models ---
 # Using threading locks to ensure thread-safe, single initialization of models.
@@ -58,3 +61,23 @@ def get_embeddings():
                 logger.critical(f"Failed to download or initialize the embeddings model. Error: {e}", exc_info=True)
                 raise RuntimeError(f"Could not load the local embeddings model '{model_name}'.") from e
     return l_embeddings
+
+def get_document_chat_agent(llm, doc_text: str):
+    """
+    Creates a ReAct agent that can chat about a document and propose KVP modifications.
+    """
+    tools = [propose_add_kvp, propose_update_kvp, propose_delete_kvp]
+    
+    # Use a pre-defined prompt from LangChain Hub that is optimized for ReAct agents.
+    prompt = hub.pull("hwchase17/react")
+    
+    # The agent prompt needs to be partially filled with the document context and KVP info.
+    # This gives the agent the necessary information to answer questions and use tools.
+    prompt = prompt.partial(
+        document_context=doc_text,
+    )
+
+    agent = create_react_agent(llm, tools, prompt)
+    agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True, handle_parsing_errors=True)
+    
+    return agent_executor
