@@ -16,6 +16,28 @@ def allowed_file(filename):
 
 @documents_bp.route('/documents', methods=['POST'])
 def upload_document():
+    """
+    Upload Document
+    ---
+    tags:
+      - Documents
+    summary: Upload a new document for processing.
+    requestBody:
+      required: true
+      content:
+        multipart/form-data:
+          schema:
+            type: object
+            properties:
+              file:
+                type: string
+                format: binary
+    responses:
+      202:
+        description: File uploaded and queued for processing.
+      400:
+        description: Bad request (e.g., no file, invalid file type).
+    """
     db = current_app.db
     
     if 'file' not in request.files:
@@ -51,7 +73,27 @@ def upload_document():
 
 @documents_bp.route('/documents', methods=['GET'])
 def get_documents():
-    """Fetches documents, optionally filtering by category."""
+    """
+    Get Documents
+    ---
+    tags:
+      - Documents
+    summary: Fetches documents, optionally filtering by category.
+    parameters:
+      - name: category
+        in: query
+        schema:
+          type: string
+        description: The category to filter by.
+      - name: include_deleted
+        in: query
+        schema:
+          type: boolean
+        description: Whether to include soft-deleted documents.
+    responses:
+      200:
+        description: A list of documents.
+    """
     db = current_app.db
     category = request.args.get('category')
     # Add a new parameter to fetch deleted documents for the trash view
@@ -61,7 +103,23 @@ def get_documents():
 
 @documents_bp.route('/documents/recent', methods=['GET'])
 def get_recent_documents():
-    """Fetches the most recently uploaded documents."""
+    """
+    Get Recent Documents
+    ---
+    tags:
+      - Documents
+    summary: Fetches the most recently uploaded documents.
+    parameters:
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          default: 5
+        description: The maximum number of recent documents to return.
+    responses:
+      200:
+        description: A list of recent documents.
+    """
     db = current_app.db
     limit = request.args.get('limit', 5, type=int)
     docs = db.get_recent_documents(limit=limit)
@@ -69,6 +127,23 @@ def get_recent_documents():
 
 @documents_bp.route('/documents/search', methods=['GET'])
 def search_documents():
+    """
+    Search Documents
+    ---
+    tags:
+      - Documents
+    summary: Searches for documents by a query string.
+    parameters:
+      - name: q
+        in: query
+        required: true
+        schema:
+          type: string
+        description: The search query.
+    responses:
+      200:
+        description: A list of search results.
+    """
     db = current_app.db
     query = request.args.get('q', '')
     if not query:
@@ -79,6 +154,25 @@ def search_documents():
 
 @documents_bp.route('/documents/<doc_id>', methods=['GET'])
 def get_document_details(doc_id):
+    """
+    Get Document Details
+    ---
+    tags:
+      - Documents
+    summary: Get the details of a specific document.
+    parameters:
+      - name: doc_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The ID of the document.
+    responses:
+      200:
+        description: Document details.
+      404:
+        description: Document not found.
+    """
     db = current_app.db
     doc = db.get_document(doc_id)
     if doc:
@@ -88,7 +182,25 @@ def get_document_details(doc_id):
 
 @documents_bp.route('/documents/<doc_id>', methods=['DELETE'])
 def soft_delete_document(doc_id):
-    """Marks a document as deleted (soft delete)."""
+    """
+    Soft Delete Document
+    ---
+    tags:
+      - Documents
+    summary: Moves a document to the trash (soft delete).
+    parameters:
+      - name: doc_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The ID of the document.
+    responses:
+      200:
+        description: Document moved to trash.
+      404:
+        description: Document not found.
+    """
     try:
         if current_app.db.soft_delete_document(doc_id):
             logger.info(f"Successfully soft-deleted document with ID {doc_id}")
@@ -102,7 +214,25 @@ def soft_delete_document(doc_id):
 
 @documents_bp.route('/documents/<doc_id>/restore', methods=['POST'])
 def restore_document(doc_id):
-    """Restores a soft-deleted document."""
+    """
+    Restore Document
+    ---
+    tags:
+      - Documents
+    summary: Restores a soft-deleted document from the trash.
+    parameters:
+      - name: doc_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The ID of the document.
+    responses:
+      200:
+        description: Document restored successfully.
+      404:
+        description: Document not found or not in trash.
+    """
     try:
         if current_app.db.restore_document(doc_id):
             logger.info(f"Successfully restored document with ID {doc_id}")
@@ -116,7 +246,30 @@ def restore_document(doc_id):
 
 @documents_bp.route('/documents/<doc_id>/download', methods=['GET'])
 def download_document(doc_id):
-    """Downloads the original file for a given document."""
+    """
+    Download Document
+    ---
+    tags:
+      - Documents
+    summary: Downloads the original file for a given document.
+    parameters:
+      - name: doc_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The ID of the document.
+    responses:
+      200:
+        description: The document file.
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      404:
+        description: Document not found.
+    """
     db = current_app.db
     doc = db.get_document(doc_id)
     if not doc:
@@ -135,6 +288,34 @@ def download_document(doc_id):
 
 @documents_bp.route('/documents/<doc_id>/kvp', methods=['PUT'])
 def update_kvp(doc_id):
+    """
+    Update KVP
+    ---
+    tags:
+      - Documents
+    summary: Updates the key-value pairs for a document.
+    parameters:
+      - name: doc_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The ID of the document.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            description: A dictionary of key-value pairs.
+    responses:
+      200:
+        description: KVP updated successfully.
+      400:
+        description: Invalid JSON.
+      404:
+        description: Document not found.
+    """
     db = current_app.db
     new_kvps = request.get_json()
     if not isinstance(new_kvps, dict):
@@ -150,6 +331,40 @@ def update_kvp(doc_id):
 
 @documents_bp.route('/documents/<doc_id>/recategorize', methods=['PUT'])
 def recategorize(doc_id):
+    """
+    Recategorize Document
+    ---
+    tags:
+      - Documents
+    summary: Recategorizes a document.
+    parameters:
+      - name: doc_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The ID of the document.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              new_category:
+                type: string
+                description: The new category for the document.
+              explanation:
+                type: string
+                description: An explanation for the recategorization.
+    responses:
+      200:
+        description: Document re-categorized.
+      400:
+        description: New category is required.
+      404:
+        description: Document not found.
+    """
     db = current_app.db
     data = request.get_json()
     new_category = data.get('new_category')
@@ -171,8 +386,36 @@ def recategorize(doc_id):
 @documents_bp.route('/documents/<doc_id>/kvp/add', methods=['POST'])
 def add_kvp_interactively(doc_id):
     """
-    Adds a single Key-Value Pair to a document, as instructed by a user
-    through the interactive chat. This action is logged for AI fine-tuning.
+    Add KVP Interactively
+    ---
+    tags:
+      - Documents
+    summary: Adds a single Key-Value Pair to a document, as instructed by a user.
+    parameters:
+      - name: doc_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The ID of the document.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              key:
+                type: string
+              value:
+                type: string
+    responses:
+      200:
+        description: KVP added and logged for training.
+      400:
+        description: Bad request.
+      404:
+        description: Document not found.
     """
     db = current_app.db
     data = request.get_json()
@@ -199,8 +442,36 @@ def add_kvp_interactively(doc_id):
 @documents_bp.route('/documents/<doc_id>/kvp/update', methods=['PATCH'])
 def update_kvp_interactively(doc_id):
     """
-    Updates a single Key-Value Pair for a document, as instructed by a user
-    through the interactive chat. This action is logged for AI fine-tuning.
+    Update KVP Interactively
+    ---
+    tags:
+      - Documents
+    summary: Updates a single Key-Value Pair for a document, as instructed by a user.
+    parameters:
+      - name: doc_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The ID of the document.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              key:
+                type: string
+              value:
+                type: string
+    responses:
+      200:
+        description: KVP updated and logged for training.
+      400:
+        description: Bad request.
+      404:
+        description: Document or KVP not found.
     """
     db = current_app.db
     data = request.get_json()
@@ -230,8 +501,34 @@ def update_kvp_interactively(doc_id):
 @documents_bp.route('/documents/<doc_id>/kvp/delete', methods=['DELETE'])
 def delete_kvp_interactively(doc_id):
     """
-    Deletes a single Key-Value Pair from a document, as instructed by a user
-    through the interactive chat. This action is logged for AI fine-tuning.
+    Delete KVP Interactively
+    ---
+    tags:
+      - Documents
+    summary: Deletes a single Key-Value Pair from a document, as instructed by a user.
+    parameters:
+      - name: doc_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The ID of the document.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              key:
+                type: string
+    responses:
+      200:
+        description: KVP deleted and logged for training.
+      400:
+        description: Bad request.
+      404:
+        description: Document or KVP not found.
     """
     db = current_app.db
     data = request.get_json()
@@ -259,7 +556,23 @@ def delete_kvp_interactively(doc_id):
 @documents_bp.route('/documents/<doc_id>/reprocess', methods=['POST'])
 def reprocess_document(doc_id):
     """
-    Re-triggers the AI processing for a document, typically after a failure.
+    Reprocess Document
+    ---
+    tags:
+      - Documents
+    summary: Re-triggers the AI processing for a document.
+    parameters:
+      - name: doc_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The ID of the document.
+    responses:
+      202:
+        description: Document has been re-queued for processing.
+      404:
+        description: Document not found.
     """
     db = current_app.db
     if not db.get_document(doc_id):

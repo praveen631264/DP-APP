@@ -12,3 +12,4 @@ python-docx
 openpyxl
 gunicorn
 pdfplumber
+flasgger

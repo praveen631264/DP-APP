@@ -11,7 +11,34 @@ logger = logging.getLogger(__name__)
 @chat_bp.route('/chat', methods=['POST'])
 def chat_with_doc():
     """
-    Handles chat queries for all documents or a specific document.
+    Chat with Documents
+    ---
+    tags:
+      - Chat
+    summary: Handles chat queries for all documents or a specific document.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              query:
+                type: string
+                description: The user's query.
+              doc_id:
+                type: string
+                description: Optional document ID to scope the chat.
+              chat_history:
+                type: array
+                items:
+                  type: string
+                description: The chat history.
+    responses:
+      200:
+        description: Chat response.
+      400:
+        description: Query is required.
     """
     data = request.get_json()
     query = data.get('query')
@@ -71,8 +98,40 @@ def chat_with_doc():
 @chat_bp.route('/documents/<doc_id>/chat', methods=['POST'])
 def document_specific_chat(doc_id):
     """
-    Handles interactive chat for a single document, with the ability for the AI
-    to propose KVP modifications.
+    Document Specific Chat
+    ---
+    tags:
+      - Chat
+    summary: Handles interactive chat for a single document.
+    parameters:
+      - name: doc_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The ID of the document.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              query:
+                type: string
+                description: The user's query.
+              chat_history:
+                type: array
+                items:
+                  type: string
+                description: The chat history.
+    responses:
+      200:
+        description: Chat response.
+      400:
+        description: Query is required.
+      404:
+        description: Document not found.
     """
     data = request.get_json()
     query = data.get('query')

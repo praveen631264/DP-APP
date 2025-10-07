@@ -6,7 +6,16 @@ logger = logging.getLogger(__name__)
 
 @categories_bp.route('/categories', methods=['GET'])
 def get_categories():
-    """Fetches a list of all unique, non-deleted document categories."""
+    """
+    Get Categories
+    ---
+    tags:
+      - Categories
+    summary: Fetches a list of all unique, non-deleted document categories.
+    responses:
+      200:
+        description: A list of categories.
+    """
     db = current_app.db
     try:
         categories = db.get_all_categories()
@@ -17,7 +26,30 @@ def get_categories():
 
 @categories_bp.route('/categories', methods=['POST'])
 def add_category():
-    """Creates a new document category."""
+    """
+    Add Category
+    ---
+    tags:
+      - Categories
+    summary: Creates a new document category.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              name:
+                type: string
+                description: The name of the new category.
+    responses:
+      201:
+        description: Category created successfully.
+      400:
+        description: Category name is required.
+      409:
+        description: Category already exists.
+    """
     db = current_app.db
     data = request.get_json()
     category_name = data.get('name')
@@ -38,7 +70,27 @@ def add_category():
 
 @categories_bp.route('/categories/<path:category_name>', methods=['DELETE'])
 def delete_category(category_name):
-    """Deletes a category only if it has no associated documents."""
+    """
+    Delete Category
+    ---
+    tags:
+      - Categories
+    summary: Deletes a category only if it has no associated documents.
+    parameters:
+      - name: category_name
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The name of the category to delete.
+    responses:
+      200:
+        description: Category deleted successfully.
+      404:
+        description: Category not found.
+      409:
+        description: Category is in use.
+    """
     db = current_app.db
     try:
         result = db.delete_category(category_name)

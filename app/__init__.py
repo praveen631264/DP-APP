@@ -5,6 +5,7 @@ from config import Config
 from .database import init_db
 from .celery_worker import make_celery
 from .logging_config import setup_logging
+from flasgger import Swagger
 
 def create_app():
     """
@@ -21,11 +22,20 @@ def create_app():
 
     # 1. Load configuration from the 'config.py' file
     app.config.from_object(Config)
+    
+    # 2. Configure and initialize Swagger
+    app.config['SWAGGER'] = {
+        'title': 'Document Analysis API',
+        'uiversion': 3,
+        'openapi': '3.0.2',
+        'doc_dir': './apidocs/' 
+    }
+    swagger = Swagger(app)
 
-    # 2. Initialize the database connection
+    # 3. Initialize the database connection
     init_db(app)
 
-    # 3. Initialize Celery
+    # 4. Initialize Celery
     app.config.update(
         CELERY_BROKER_URL=app.config["CELERY_BROKER_URL"],
         CELERY_RESULT_BACKEND=app.config["CELERY_RESULT_BACKEND"],
@@ -38,7 +48,7 @@ def create_app():
     except OSError:
         pass
 
-    # 4. Register Blueprints
+    # 5. Register Blueprints
     from app.blueprints.chat import chat_bp
     from app.blueprints.documents import documents_bp
     from app.blueprints.health import health_bp
