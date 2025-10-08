@@ -13,3 +13,4 @@ openpyxl
 gunicorn
 pdfplumber
 flasgger
+python-json-logger

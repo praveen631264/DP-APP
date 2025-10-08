@@ -1,56 +1,77 @@
-import { Component, inject } from '@angular/core';
-import { BreakpointObserver, Breakpoints } from '@angular/cdk/layout';
-import { Observable } from 'rxjs';
-import { map, shareReplay } from 'rxjs/operators';
-import { AsyncPipe, NgFor } from '@angular/common';
-import { MatGridListModule } from '@angular/material/grid-list';
-import { MatMenuModule } from '@angular/material/menu';
-import { MatIconModule } from '@angular/material/icon';
-import { MatButtonModule } from '@angular/material/button';
-import { MatCardModule } from '@angular/material/card';
+import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
+import { DocumentService, Document } from '../document.service';
+import { ChatComponent } from '../chat/chat';
+import { DocumentView } from '../document-view/document-view';
+import { CommonModule } from '@angular/common';
 
 @Component({
   selector: 'app-dashboard',
   templateUrl: './dashboard.html',
   styleUrls: ['./dashboard.scss'],
   standalone: true,
-  imports: [
-    AsyncPipe,
-    NgFor,
-    MatGridListModule,
-    MatMenuModule,
-    MatIconModule,
-    MatButtonModule,
-    MatCardModule
-  ]
+  imports: [CommonModule, ChatComponent, DocumentView]
 })
-export class Dashboard {
-  private breakpointObserver = inject(BreakpointObserver);
+export class DashboardComponent implements OnInit {
+  selectedFile: File | null = null;
+  documents: Document[] = [];
+  selectedDocument: Document | null = null;
+  useMockData = true; // Set initial state to true
 
-  /** Based on the screen size, switch from standard to one column per row. */
-  cards = this.breakpointObserver.observe(Breakpoints.Handset).pipe(
-    map(({ matches }) => {
-      if (matches) {
-        return [
-          { title: 'Card 1', cols: 1, rows: 1, content: 'Card 1 content' },
-          { title: 'Card 2', cols: 1, rows: 1, content: 'Card 2 content' },
-          { title: 'Card 3', cols: 1, rows: 1, content: 'Card 3 content' },
-          { title: 'Card 4', cols: 1, rows: 1, content: 'Card 4 content' }
-        ];
+  constructor(private documentService: DocumentService, private cdr: ChangeDetectorRef) { }
+
+  ngOnInit(): void {
+    // This is a bit of a hack to get the initial state from the service.
+    // A better approach would be to use a shared state management service.
+    // @ts-ignore
+    this.useMockData = this.documentService.useMockData;
+    this.loadDocuments();
+  }
+
+  loadDocuments(): void {
+    this.documentService.getDocuments().subscribe(docs => {
+      this.documents = docs;
+      if (this.documents.length > 0) {
+        this.selectDocument(this.documents[0]);
+        this.cdr.detectChanges(); // Manually trigger change detection
       }
+    });
+  }
 
-      return [
-        { title: 'Card 1', cols: 2, rows: 1, content: 'Card 1 content' },
-        { title: 'Card 2', cols: 1, rows: 1, content: 'Card 2 content' },
-        { title: 'Card 3', cols: 1, rows: 2, content: 'Card 3 content' },
-        { title: 'Card 4', cols: 1, rows: 1, content: 'Card 4 content' }
-      ];
-    })
-  );
+  selectDocument(doc: Document): void {
+    this.selectedDocument = doc;
+  }
 
-  isHandset$: Observable<boolean> = this.breakpointObserver.observe(Breakpoints.Handset)
-    .pipe(
-      map(result => result.matches),
-      shareReplay()
+  onFileSelected(event: any): void {
+    this.selectedFile = event.target.files[0];
+  }
+
+  uploadDocument(): void {
+    if (this.selectedFile) {
+      this.documentService.uploadDocument(this.selectedFile).subscribe(
+        (response: any) => {
+          console.log('Upload successful', response);
+          this.loadDocuments(); // Refresh the list after upload
+        },
+        (error: any) => {
+          console.error('Upload failed', error);
+        }
+      );
+    }
+  }
+
+  toggleMockData(): void {
+    this.useMockData = !this.useMockData;
+    this.documentService.setUseMock(this.useMockData);
+  }
+
+  recategorizeDocument(docId: string): void {
+    this.documentService.recategorizeDocument(docId, 'new-category-id', 'explanation').subscribe(
+      (response: any) => {
+        console.log('Recategorize successful', response);
+      },
+      (error: any) => {
+        console.error('Recategorize failed', error);
+      }
     );
+  }
 }

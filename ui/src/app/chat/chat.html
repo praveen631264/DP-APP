@@ -1,0 +1,43 @@
+<div class="chat-container">
+
+  <div class="mock-toggle">
+    <label for="mock-chat-switch">Use Mock Chat:</label>
+    <input type="checkbox" id="mock-chat-switch" (change)="toggleMockData($event)">
+  </div>
+
+  <!-- Correction Chat -->
+  <div class="chat-window">
+    <h3>Correct a Key-Value Pair</h3>
+    <p>Help us improve our AI by correcting any errors you find.</p>
+    <form [formGroup]="correctionForm" (ngSubmit)="sendCorrection()">
+      <input type="text" formControlName="docId" placeholder="Document ID">
+      <input type="text" formControlName="key" placeholder="Key to Correct">
+      <input type="text" formControlName="value" placeholder="Correct Value">
+      <button type="submit">Send Correction</button>
+    </form>
+  </div>
+
+  <!-- Global Chat -->
+  <div class="chat-window">
+    <h3>Global Chat</h3>
+    <p>Ask the AI anything about the documents.</p>
+    <div class="chat-history"></div>
+    <form [formGroup]="globalChatForm" (ngSubmit)="sendGlobalMessage()">
+      <input type="text" formControlName="message" placeholder="Type your message...">
+      <button type="submit">Send</button>
+    </form>
+  </div>
+
+  <!-- Category Chat -->
+  <div class="chat-window">
+    <h3>Category Chat</h3>
+    <p>Chat with the AI about a specific document category.</p>
+    <div class="chat-history"></div>
+    <form [formGroup]="categoryChatForm" (ngSubmit)="sendCategoryMessage()">
+      <input type="text" formControlName="category" placeholder="Category (e.g., invoice)">
+      <input type="text" formControlName="message" placeholder="Type your message...">
+      <button type="submit">Send</button>
+    </form>
+  </div>
+
+</div>

@@ -1,43 +1,45 @@
-import { Component, inject } from '@angular/core';
-import { BreakpointObserver, Breakpoints } from '@angular/cdk/layout';
-import { Observable } from 'rxjs';
-import { map, shareReplay } from 'rxjs/operators';
-import { AsyncPipe, NgIf } from '@angular/common';
-import { MatToolbarModule } from '@angular/material/toolbar';
-import { MatSidenavModule } from '@angular/material/sidenav';
-import { MatListModule } from '@angular/material/list';
-import { MatIconModule } from '@angular/material/icon';
-import { MatButtonModule } from '@angular/material/button';
-import { MatCardModule } from '@angular/material/card';
-import { MatGridListModule } from '@angular/material/grid-list';
-import { MatMenuModule } from '@angular/material/menu';
-import { RouterModule } from '@angular/router';
+import { Component, OnInit, ElementRef, ViewChild, AfterViewInit } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
+import { HttpEventType } from '@angular/common/http';
+import { CategoryService, Category } from './category.service';
+import { DocumentService, Document } from './document.service';
+
+declare var lucide: any;
 
 @Component({
   selector: 'app-root',
   templateUrl: './app.html',
   styleUrls: ['./app.scss'],
   standalone: true,
-  imports: [
-    NgIf,
-    AsyncPipe,
-    MatToolbarModule,
-    MatSidenavModule,
-    MatListModule,
-    MatIconModule,
-    MatButtonModule,
-    MatGridListModule,
-    MatCardModule,
-    MatMenuModule,
-    RouterModule
-  ]
+  imports: [CommonModule, FormsModule]
 })
-export class App {
-  private breakpointObserver = inject(BreakpointObserver);
+export class App implements OnInit, AfterViewInit {
+  selectedDocument: Document | null = null;
+  isKVRefinementChatOpen = false;
+  isCategoryModalOpen = false;
+  isSidebarOpen = false;
 
-  isHandset$: Observable<boolean> = this.breakpointObserver.observe(Breakpoints.Handset)
-    .pipe(
-      map(result => result.matches),
-      shareReplay()
-    );
+  constructor(
+    private documentService: DocumentService,
+    private categoryService: CategoryService
+  ) {}
+
+  ngOnInit(): void {
+    // Logic to run on component initialization
+  }
+
+  ngAfterViewInit(): void {
+    lucide.createIcons();
+  }
+
+  toggleSidebar(): void {
+    this.isSidebarOpen = !this.isSidebarOpen;
+  }
+
+  deleteKVRow(key: string): void {
+    if (this.selectedDocument && this.selectedDocument.kvData) {
+      this.selectedDocument.kvData = this.selectedDocument.kvData.filter(item => item.key !== key);
+    }
+  }
 }

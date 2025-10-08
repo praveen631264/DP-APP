@@ -1,24 +1,27 @@
-<div class="grid-container">
-  <h1 class="mat-h1">Dashboard</h1>
-  <mat-grid-list cols="{{ (isHandset$ | async) ? 1 : 2 }}" rowHeight="200px">
-    <mat-grid-tile *ngFor="let card of cards | async" [colspan]="card.cols" [rowspan]="card.rows">
-      <mat-card class="dashboard-card">
-        <mat-card-header>
-          <mat-card-title>
-            {{card.title}}
-            <button mat-icon-button class="more-button" [matMenuTriggerFor]="menu" aria-label="Toggle menu">
-              <mat-icon>more_vert</mat-icon>
-            </button>
-            <mat-menu #menu="matMenu" xPosition="before">
-              <button mat-menu-item>Expand</button>
-              <button mat-menu-item>Remove</button>
-            </mat-menu>
-          </mat-card-title>
-        </mat-card-header>
-        <mat-card-content class="dashboard-card-content">
-          <div>{{card.content}}</div>
-        </mat-card-content>
-      </mat-card>
-    </mat-grid-tile>
-  </mat-grid-list>
+<div class="dashboard-container">
+  <div class="toolbar">
+    <input type="file" (change)="onFileSelected($event)">
+    <button (click)="uploadDocument()">Upload Document</button>
+
+    <div class="mock-toggle">
+      <label for="mock-switch">Use Mock Data</label>
+      <input type="checkbox" id="mock-switch" [checked]="useMockData" (change)="toggleMockData()">
+    </div>
+  </div>
+
+  <div class="main-content">
+    <div class="document-list">
+      <div *ngFor="let doc of documents" (click)="selectDocument(doc)" class="document-item">
+        {{ doc.name }}
+      </div>
+    </div>
+
+    <div class="document-view">
+      <app-document-view [document]="selectedDocument"></app-document-view>
+    </div>
+  </div>
+
+  <div class="chat-container">
+    <app-chat></app-chat>
+  </div>
 </div>

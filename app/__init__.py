@@ -54,12 +54,14 @@ def create_app():
     from app.blueprints.health import health_bp
     from app.blueprints.categories import categories_bp
     from app.blueprints.dashboard import dashboard_bp
+    from app.blueprints.uploads import uploads_bp
 
     app.register_blueprint(chat_bp, url_prefix='/api/v1')
     app.register_blueprint(documents_bp, url_prefix='/api/v1')
     app.register_blueprint(health_bp) # No prefix for health check
     app.register_blueprint(categories_bp, url_prefix='/api/v1')
     app.register_blueprint(dashboard_bp, url_prefix='/api/v1')
+    app.register_blueprint(uploads_bp, url_prefix='/api/v1')
 
     # A simple route to test the server is running
     @app.route('/hello')

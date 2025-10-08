@@ -1,17 +1,32 @@
-.sidenav-container {
-  height: 100%;
+/* You can add global styles to this file, and also import other style files */
+
+.loading-overlay {
+    background-color: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(4px);
 }
 
-.sidenav {
-  width: 200px;
+.kv-table {
+    th, td {
+        padding: 0.75rem;
+    }
 }
 
-.sidenav .mat-toolbar {
-  background: inherit;
+.btn-primary {
+    background-color: #4f46e5;
+    color: white;
+    &:hover {
+        background-color: #4338ca;
+    }
 }
 
-.mat-toolbar.mat-primary {
-  position: sticky;
-  top: 0;
-  z-index: 1;
+.sidebar {
+    background-color: #f9fafb;
+}
+
+.main-content {
+    background-color: #f3f4f6;
+}
+
+.modal-overlay {
+    background-color: rgba(0, 0, 0, 0.5);
 }
