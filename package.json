@@ -1,0 +1,15 @@
+{
+  "name": "document-processor",
+  "version": "1.0.0",
+  "description": "Flask and Tailwind CSS project",
+  "main": "index.js",
+  "scripts": {
+    "build:css": "tailwindcss -i ./static/css/src/input.css -o ./static/css/tailwind.css --watch"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "tailwindcss": "^3.4.3"
+  }
+}

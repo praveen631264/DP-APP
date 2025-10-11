@@ -1,91 +1,102 @@
-from flask import Flask, jsonify, request
+
+import os
+import uuid
+import threading
 import time
 import random
+from flask import Flask, request, jsonify
 from flask_cors import CORS
-from api.chat import chat_api
 
-# Create a Flask app
+# --- Application Setup ---
 app = Flask(__name__)
-CORS(app, resources={r"/api/*": {"origins": "*"}})
+# Enable Cross-Origin Resource Sharing to allow the frontend to call the backend
+CORS(app)
 
-# Register the chat API blueprint
-app.register_blueprint(chat_api)
+# --- In-Memory Database & Configuration ---
+# Create a directory to store uploaded files
+UPLOAD_FOLDER = 'uploads'
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-# In-memory data store
-documents = []
-next_document_id = 1
+# This dictionary will act as our simple in-memory "database" to track the status
+# of processing jobs. In a real application, this would be a real database.
+# Structure: { "file_id": {"status": "pending/completed", "result": {...}} }
+jobs = {}
 
-def find_document_by_id(doc_id):
-    for doc in documents:
-        if doc['id'] == doc_id:
-            return doc
-    return None
+# --- Background AI Simulation ---
 
-@app.route('/api/v1/uploads', methods=['POST'])
+def simulate_ai_processing(file_id, file_path):
+    """
+    This function runs in a separate thread to simulate a long-running AI task.
+    It waits for a random time, generates fake data, and updates the job status.
+    """
+    print(f"Starting AI processing for file_id: {file_id}...")
+    
+    # Simulate the time it takes for the AI to process the document
+    time.sleep(random.randint(5, 10))
+    
+    # Simulate extracting data from the document
+    # In a real system, this is where you would call the n8n workflow or AI model
+    fake_extracted_data = {
+        "invoice_number": f"INV-{random.randint(1000, 9999)}",
+        "vendor_name": random.choice(["ACME Corp", "Stark Industries", "Wayne Enterprises"]),
+        "total_amount": round(random.uniform(100.0, 5000.0), 2),
+        "extracted_at": time.ctime()
+    }
+    
+    # Update the jobs dictionary with the final result
+    jobs[file_id]['status'] = 'completed'
+    jobs[file_id]['result'] = fake_extracted_data
+    
+    print(f"Completed AI processing for file_id: {file_id}.")
+
+# --- API Endpoints ---
+
+@app.route('/api/v1/upload', methods=['POST'])
 def upload_file():
-    global next_document_id
+    """
+    Handles the file upload from the user.
+    Saves the file, creates a job ID, and starts the background processing.
+    """
     if 'file' not in request.files:
-        return jsonify({'error': 'No file part in the request'}), 400
+        return jsonify({"error": "No file part in the request"}), 400
+    
     file = request.files['file']
     if file.filename == '':
-        return jsonify({'error': 'No file selected for uploading'}), 400
+        return jsonify({"error": "No file selected"}), 400
+
     if file:
-        document = {
-            'id': next_document_id,
-            'name': file.filename,
-            'status': 'uploaded',
-            'category': None,
-            'kv_pairs': None
-        }
-        documents.append(document)
-        next_document_id += 1
-        return jsonify(documents)
-
-@app.route('/api/v1/documents', methods=['GET'])
-def get_documents():
-    return jsonify(documents)
-
-@app.route('/api/v1/documents/<int:doc_id>/categorize', methods=['POST'])
-def categorize_document(doc_id):
-    doc = find_document_by_id(doc_id)
-    if not doc:
-        return jsonify({'error': 'Document not found'}), 404
-    
-    doc['status'] = 'categorizing'
-    # Simulate AI processing time
-    time.sleep(2)
-    
-    # Simulate success or error
-    if random.random() > 0.2: # 80% success rate
-        doc['status'] = 'categorized'
-        doc['category'] = random.choice(['invoice', 'receipt', 'contract', 'report'])
-    else:
-        doc['status'] = 'error'
-        doc['category'] = 'unknown'
+        # Save the file to the uploads folder
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
+        file.save(file_path)
         
-    return jsonify(doc)
+        # Create a unique ID for this processing job
+        file_id = str(uuid.uuid4())
+        
+        # Create a new entry in our jobs dictionary
+        jobs[file_id] = {"status": "pending", "result": None}
+        
+        # Start the background AI processing task in a new thread
+        # We pass the file_id and path to the background function
+        thread = threading.Thread(target=simulate_ai_processing, args=(file_id, file_path))
+        thread.start()
+        
+        # Immediately return the file_id to the client
+        return jsonify({"message": "File uploaded successfully, processing started.", "file_id": file_id}), 202
 
-@app.route('/api/v1/documents/<int:doc_id>/extract', methods=['POST'])
-def extract_kv_pairs(doc_id):
-    doc = find_document_by_id(doc_id)
-    if not doc:
-        return jsonify({'error': 'Document not found'}), 404
-
-    if doc['status'] != 'categorized':
-        return jsonify({'error': 'Document must be categorized before extraction'}), 400
-
-    doc['status'] = 'extracting'
-    # Simulate AI processing time
-    time.sleep(3)
-
-    doc['status'] = 'extracted'
-    doc['kv_pairs'] = [
-        {'key': 'Invoice Number', 'value': 'INV-12345'},
-        {'key': 'Date', 'value': '2025-10-26'},
-        {'key': 'Total Amount', 'value': '$5,000'}
-    ]
-    return jsonify(doc)
-
+@app.route('/api/v1/results/<string:file_id>', methods=['GET'])
+def get_result(file_id):
+    """
+    Called by the frontend to check the status of a processing job.
+    Returns the result if completed, otherwise returns the pending status.
+    """
+    job = jobs.get(file_id)
+    
+    if not job:
+        return jsonify({"error": "Invalid file_id"}), 404
+        
+    return jsonify(job)
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5001)
+    # Runs the Flask application
+    app.run(debug=True, port=5000)

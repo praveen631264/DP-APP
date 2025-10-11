@@ -1,0 +1,126 @@
+./devserver.sh
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Intelligent Document Automation</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; background-color: #f8f9fa; }
+        .navbar { background-color: #343a40; color: white; padding: 1em; text-align: center; }
+        .container { max-width: 700px; margin: 2em auto; padding: 2em; background-color: white; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        h1, h2 { color: #343a40; }
+        form { display: flex; flex-direction: column; gap: 1em; }
+        input[type="file"] { padding: 0.5em; border: 1px solid #ced4da; border-radius: 4px; }
+        button { padding: 0.8em; background-color: #007bff; color: white; border: none; border-radius: 4px; font-size: 1em; cursor: pointer; transition: background-color 0.2s; }
+        button:hover { background-color: #0056b3; }
+        .results-container { margin-top: 2em; padding-top: 1em; border-top: 1px solid #eee; }
+        #status { font-style: italic; color: #6c757d; }
+        pre { background-color: #e9ecef; padding: 1em; border-radius: 4px; white-space: pre-wrap; word-wrap: break-word; }
+    </style>
+</head>
+<body>
+
+    <div class="navbar">
+        <h2>Intelligent Document Automation Platform</h2>
+    </div>
+
+    <div class="container">
+        <h1>Upload Document for Analysis</h1>
+        <p>Select a document to be analyzed. The system will automatically extract key information using our AI engine.</p>
+        
+        <form id="upload-form">
+            <input type="file" name="file" id="file-input" required>
+            <button type="submit">Upload and Process</button>
+        </form>
+
+        <div class="results-container">
+            <h2>Results</h2>
+            <p id="status">Awaiting file upload...</p>
+            <pre id="results-output">{}</pre>
+        </div>
+    </div>
+
+    <script>
+        const form = document.getElementById('upload-form');
+        const fileInput = document.getElementById('file-input');
+        const statusElement = document.getElementById('status');
+        const resultsOutput = document.getElementById('results-output');
+
+        const API_BASE_URL = 'http://127.0.0.1:5000'; // The address of our Flask backend
+
+        let pollingInterval;
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault(); // Prevent the default form submission (page reload)
+
+            if (pollingInterval) {
+                clearInterval(pollingInterval); // Stop any previous polling
+            }
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+
+            statusElement.textContent = 'Uploading file...';
+            resultsOutput.textContent = '{}';
+
+            try {
+                // --- Step 1: Upload the file ---
+                const uploadResponse = await fetch(`${API_BASE_URL}/api/v1/upload`, {
+                    method: 'POST',
+                    body: formData,
+                });
+
+                if (!uploadResponse.ok) {
+                    throw new Error('File upload failed.');
+                }
+
+                const uploadData = await uploadResponse.json();
+                const fileId = uploadData.file_id;
+
+                if (!fileId) {
+                    throw new Error('Did not receive a file_id from the server.');
+                }
+
+                // --- Step 2: Start polling for the result ---
+                statusElement.textContent = `Processing... (Job ID: ${fileId})`;
+                pollForResult(fileId);
+
+            } catch (error) {
+                statusElement.textContent = `Error: ${error.message}`;
+                console.error('Upload Error:', error);
+            }
+        });
+
+        function pollForResult(fileId) {
+            pollingInterval = setInterval(async () => {
+                try {
+                    const resultResponse = await fetch(`${API_BASE_URL}/api/v1/results/${fileId}`);
+                    if (!resultResponse.ok) {
+                        throw new Error('Could not fetch results.');
+                    }
+
+                    const resultData = await resultResponse.json();
+
+                    // --- Step 3: Check the status and display the result ---
+                    if (resultData.status === 'completed') {
+                        clearInterval(pollingInterval); // Stop polling
+                        statusElement.textContent = 'Processing Complete!';
+                        // Format the JSON with indentation for readability
+                        resultsOutput.textContent = JSON.stringify(resultData.result, null, 2);
+                    } else {
+                        // If not completed, the status element will continue to show "Processing..."
+                        console.log('Status is still pending...');
+                    }
+                } catch (error) {
+                    clearInterval(pollingInterval); // Stop polling on error
+                    statusElement.textContent = `Error: ${error.message}`;
+                    console.error('Polling Error:', error);
+                }
+            }, 3000); // Check for the result every 3 seconds
+        }
+    </script>
+
+</body>
+</html>

@@ -1,0 +1,261 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IntelliDoc Document Processor</title>
+    <!-- Load Tailwind CSS -->
+    <link href="/static/css/tailwind.css" rel="stylesheet">
+    <!-- Load Lucide Icons -->
+    <script src="/static/js/lucide.js"></script>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body class="flex flex-col h-screen overflow-hidden">
+
+    <!-- Loading Indicator -->
+    <div id="loadingOverlay" class="fixed inset-0 loading-overlay flex items-center justify-center z-[100] hidden">
+        <div class="p-6 bg-white rounded-xl shadow-2xl flex items-center space-x-3">
+            <svg class="animate-spin h-5 w-5 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span class="text-gray-700 font-medium">Processing...</span>
+        </div>
+    </div>
+
+
+    <!-- Main Application Container -->
+    <div class="flex flex-1 overflow-hidden">
+
+        <!-- Left Sidebar (Document Management) -->
+        <aside id="sidebar" class="sidebar lg:w-1/3 xl:w-1/4 p-6 overflow-y-auto hidden lg:block z-20">
+            <h1 class="text-3xl font-bold text-indigo-800 mb-6 flex items-center">
+                <i data-lucide="file-text" class="w-7 h-7 mr-2"></i>
+                IntelliDoc Processor
+            </h1>
+            <p id="userStatus" class="text-xs text-gray-500 mb-4 border-b pb-2">User ID: mock-user-id</p>
+
+
+            <!-- Upload Component -->
+            <div class="border-2 border-dashed border-indigo-300 bg-indigo-50 p-4 rounded-xl text-center mb-6">
+                <p class="text-sm text-gray-600 mb-2">Upload new document for processing</p>
+                <input type="file" id="documentUpload" class="hidden" onchange="handleFileUpload()">
+                <button onclick="document.getElementById('documentUpload').click()" class="w-full px-4 py-2 text-sm font-semibold rounded-lg btn-primary">
+                    Select Document
+                </button>
+            </div>
+
+            <!-- Category Management Section -->
+            <div class="mb-6">
+                <div class="flex justify-between items-center mb-3">
+                    <p class="text-lg font-semibold text-gray-700">Document Categories</p>
+                    <button onclick="toggleCategoryModal(true)" class="text-indigo-600 hover:text-indigo-800 text-sm font-medium flex items-center">
+                        <i data-lucide="plus-circle" class="w-4 h-4 mr-1"></i> Manage
+                    </button>
+                </div>
+                <div id="categoryList" class="space-y-2">
+                    <!-- Categories injected here -->
+                </div>
+            </div>
+
+            <!-- Document Navigation (Filtered List + Unknown Pool) -->
+            <div class="border-t border-gray-200 pt-4">
+                <p class="text-lg font-semibold text-gray-700 mb-3">Documents List</p>
+                
+                <!-- Search Bar for Scalability -->
+                <div class="mb-4">
+                    <div class="relative">
+                        <i data-lucide="search" class="w-4 h-4 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2"></i>
+                        <input type="text" id="documentSearch" oninput="handleSearch()" placeholder="Search documents..." 
+                               class="w-full p-2 pl-10 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                    </div>
+                </div>
+
+                <div class="flex border-b border-gray-200 mb-4">
+                    <button id="tabDocuments" onclick="switchDocumentList('documents')" class="flex-1 py-2 text-center text-sm font-medium border-b-2 border-indigo-600 text-indigo-600 transition duration-150">
+                        Processed (<span id="docCount">0</span>)
+                    </button>
+                    <button id="tabPending" onclick="switchDocumentList('pending')" class="flex-1 py-2 text-center text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 transition duration-150">
+                        Pending (<span id="pendingCount">0</span>)
+                    </button>
+                    <button id="tabUnknown" onclick="switchDocumentList('unknown')" class="flex-1 py-2 text-center text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 transition duration-150">
+                        Unknown (<span id="unknownCount">0</span>)
+                    </button>
+                </div>
+                
+                <div id="documentList" class="space-y-3 pb-4">
+                    <!-- Filtered documents will be injected here by JS -->
+                </div>
+                <div id="pendingList" class="space-y-3 pb-4 hidden">
+                    <!-- Pending Documents will be injected here by JS -->
+                </div>
+                <div id="unknownList" class="space-y-3 pb-4 hidden">
+                    <!-- Unknown Documents will be injected here by JS -->
+                </div>
+                
+                <!-- Pagination Button -->
+                <button id="loadMoreBtn" onclick="loadMoreDocuments()" class="w-full py-2 text-sm font-semibold rounded-lg bg-gray-100 text-indigo-600 hover:bg-gray-200 transition duration-150 hidden">
+                    Load More Documents
+                </button>
+            </div>
+        </aside>
+
+        <!-- Right Main Content Area -->
+        <main id="mainContent" class="flex-1 overflow-y-auto main-content p-6 lg:w-2/3 xl:w-3/4">
+
+            <!-- Mobile Sidebar Toggle -->
+            <div class="lg:hidden mb-4">
+                <button onclick="toggleSidebar()" class="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 flex items-center">
+                    <i data-lucide="menu" class="w-5 h-5 mr-2"></i>
+                    Document Menu
+                </button>
+            </div>
+
+            <div id="viewContainer">
+                <!-- View A: Document Processing & KV Extraction -->
+                <section id="viewA" class="space-y-6">
+                    <h2 class="text-2xl font-semibold text-gray-800">KV Extraction for: <span id="currentDocName" class="text-indigo-600"></span></h2>
+                    <p class="text-sm text-gray-500">Document Category: <span id="currentDocCategory" class="font-medium text-indigo-600"></span></p>
+                    
+                    <div class="lg:flex lg:space-x-6 h-[70vh]">
+                        <!-- Document Preview Placeholder -->
+                        <div class="lg:w-1/2 p-4 bg-white rounded-xl shadow-lg border border-gray-200 mb-6 lg:mb-0">
+                            <p class="text-lg font-medium mb-3 text-gray-700 flex items-center"><i data-lucide="book-text" class="w-5 h-5 mr-2"></i> Document Preview</p>
+                            <div class="h-full bg-gray-100 rounded-lg flex items-center justify-center text-gray-400">
+                                <span class="text-sm">Placeholder: PDF/Image Preview</span>
+                            </div>
+                        </div>
+
+                        <!-- KV Extraction Editor -->
+                        <div class="lg:w-1/2 bg-white p-4 rounded-xl shadow-lg border border-gray-200 overflow-y-auto">
+                            <div class="flex justify-between items-center mb-4">
+                                <p class="text-lg font-medium text-gray-700 flex items-center"><i data-lucide="columns-3" class="w-5 h-5 mr-2"></i> Extracted Key-Value Pairs</p>
+                                <button onclick="saveKVData()" class="px-3 py-1 text-sm font-semibold rounded-lg bg-green-500 text-white hover:bg-green-600 transition duration-150 ease-in-out flex items-center">
+                                    <i data-lucide="save" class="w-4 h-4 mr-1"></i> Save KV Data
+                                </button>
+                                <button onclick="toggleKVRefinementChat(true)" class="px-3 py-1 text-sm font-semibold rounded-lg btn-primary flex items-center">
+                                    <i data-lucide="message-square" class="w-4 h-4 mr-1"></i> Refine with AI
+                                </button>
+                            </div>
+                            <table class="w-full text-left text-sm kv-table">
+                                <thead class="text-xs text-gray-700 uppercase bg-gray-50 rounded-t-lg">
+                                    <tr>
+                                        <th scope="col" class="py-3 px-2 rounded-tl-lg">Key</th>
+                                        <th scope="col" class="py-3 px-2">Value</th>
+                                        <th scope="col" class="py-3 px-2 rounded-tr-lg">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="kvTableBody">
+                                    <!-- KV rows will be injected here by JS -->
+                                </tbody>
+                            </table>
+                            <button onclick="addKVRow()" class="mt-4 w-full border border-dashed border-gray-300 text-gray-500 py-2 rounded-lg hover:bg-gray-50 transition duration-150">
+                                + Add New KV Field
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- View C: Global & Category AI Chat -->
+                <section id="viewC" class="hidden">
+                    <h2 class="text-2xl font-semibold text-gray-800 mb-4">AI Document Query (Simulated Bedrock Chat)</h2>
+
+                    <div class="flex items-center space-x-3 mb-6 bg-white p-4 rounded-xl shadow-md border border-gray-200">
+                        <label for="chatMode" class="text-sm font-medium text-gray-700">Chat Mode:</label>
+                        <select id="chatMode" onchange="updateChatPrompt()" class="p-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">
+                            <option value="global">Global Document Chat (Scan entire document)</option>
+                            <option value="category">Category-Based Chat (Scan 'Invoice' fields only)</option>
+                        </select>
+                        <span id="chatModeStatus" class="text-sm text-indigo-600 font-medium ml-4"></span>
+                    </div>
+
+                    <div class="h-[60vh] flex flex-col bg-white rounded-xl shadow-lg border border-gray-200">
+                        <!-- Chat History -->
+                        <div id="chatHistory" class="flex-1 overflow-y-auto p-4 space-y-4">
+                            <!-- Chat messages will be injected here -->
+                            <div class="flex justify-start">
+                                <div class="bg-gray-100 p-3 rounded-xl max-w-xs lg:max-w-md text-sm shadow">
+                                    Hello! I'm the IntelliDoc AI. Use the dropdown above to choose a query scope. Try asking about "Total amount" on an Invoice.
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Chat Input -->
+                        <div class="border-t border-gray-200 p-4">
+                            <div class="flex space-x-3">
+                                <input type="text" id="chatInput" placeholder="Ask anything about the entire document..." class="flex-1 p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 text-sm">
+                                <button onclick="sendGeneralChat()" class="px-4 py-2 text-sm font-semibold rounded-lg btn-primary">
+                                    <i data-lucide="send" class="w-5 h-5"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+            
+            <!-- In-Line KV Refinement Chat Panel -->
+            <div id="kvRefinementChat" class="fixed right-0 top-0 h-full w-96 bg-white shadow-2xl border-l border-gray-300 p-6 z-50 transform translate-x-full transition duration-300 ease-in-out flex flex-col">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-semibold text-indigo-700">KV Refinement AI</h3>
+                    <button onclick="toggleKVRefinementChat(false)" class="text-gray-500 hover:text-gray-800 transition">
+                        <i data-lucide="x" class="w-6 h-6"></i>
+                    </button>
+                </div>
+                <p class="text-sm text-gray-500 mb-4 border-b pb-2">Ask the AI to extract or confirm specific KV fields. (Simulated Bedrock Call)</p>
+                
+                <div id="kvChatHistory" class="flex-1 overflow-y-auto space-y-4">
+                    <div class="flex justify-start">
+                        <div class="bg-gray-100 p-3 rounded-xl max-w-full text-sm shadow">
+                            What key-value field are you looking to add or modify? The AI will use your input to **train itself** on this category.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="border-t border-gray-200 pt-4">
+                    <div class="flex space-x-2">
+                        <input type="text" id="kvChatInput" placeholder="Query KV fields..." class="flex-1 p-2 border border-gray-300 rounded-lg text-sm">
+                        <button onclick="sendKVChat()" class="px-3 py-2 text-sm font-semibold rounded-lg btn-primary">
+                            Send
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Category Management Modal (View D) -->
+            <div id="categoryModal" class="fixed inset-0 hidden modal-overlay items-center justify-center z-50">
+                <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-xl">
+                    <div class="flex justify-between items-center border-b pb-3 mb-4">
+                        <h3 class="text-xl font-bold text-indigo-700">Manage Document Categories</h3>
+                        <button onclick="toggleCategoryModal(false)" class="text-gray-500 hover:text-gray-800 transition">
+                            <i data-lucide="x" class="w-6 h-6"></i>
+                        </button>
+                    </div>
+
+                    <div id="existingCategories" class="mb-6 max-h-48 overflow-y-auto space-y-2 border p-3 rounded-lg bg-gray-50">
+                        <p class="text-sm text-gray-500 font-medium border-b pb-2">Existing Categories:</p>
+                        <!-- Existing categories injected here -->
+                    </div>
+
+                    <p class="text-lg font-semibold text-gray-700 mb-3 border-t pt-4">Add New Category</p>
+                    <div class="space-y-4">
+                        <div>
+                            <label for="newCategoryName" class="block text-sm font-medium text-gray-700 mb-1">Category Name</label>
+                            <input type="text" id="newCategoryName" class="w-full p-2 border border-gray-300 rounded-lg" placeholder="e.g., Purchase Order">
+                        </div>
+                        <div>
+                            <label for="newCategoryDescription" class'="block text-sm font-medium text-gray-700 mb-1">AI Training Description</label>
+                            <textarea id="newCategoryDescription" rows="3" class="w-full p-2 border border-gray-300 rounded-lg" placeholder="e.g., Documents for this category contain 'PO Number' and a vendor shipping address."></textarea>
+                        </div>
+                        <button onclick="addCategory()" class="w-full py-2 font-semibold rounded-lg btn-primary">
+                            Save New Category
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+<script src="/static/js/main.js"></script>
+</body>
+</html>
