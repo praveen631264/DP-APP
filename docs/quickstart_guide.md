@@ -1,110 +1,78 @@
-# Quickstart Guide
 
-This guide provides a fast track to getting the IntelliDocs application up and running on your local machine for development and testing purposes.
+# **Project Quickstart & API Guide**
 
-## Prerequisites
+## **1. Overview**
 
-*   **Python 3.10+**: Ensure you have a modern version of Python installed.
-*   **Docker & Docker Compose**: This is the recommended method for running the required services (MongoDB, Redis) with minimal setup.
-*   **AI Provider API Key**: You need an API key from an AI service provider like OpenAI to use the document analysis features.
+This document provides a comprehensive guide for developers and users of the Unified Business Intelligence & Automation Platform. The platform is designed to ingest, analyze, automate, and unlock insights from business documents through a powerful, multi-layered AI architecture.
 
-## 1. Clone the Repository
+## **2. Core Architecture**
 
-```bash
-git clone <repository_url>
-cd intellidocs
-```
+The system is built on three pillars:
 
-## 2. Set Up Environment Variables
+*   **Intelligent Ingestion & Management:** A Redis-backed, asynchronous system for uploading and categorizing documents.
+*   **Customizable Automation Playbooks:** A Celery-based workflow engine that executes multi-step, prompt-driven automations.
+*   **Conversational Intelligence Engine:** A Retrieval-Augmented Generation (RAG) pipeline using ChromaDB for asking natural language questions of your documents.
 
-Configuration is managed via a `.env` file. A sample is provided in the project root.
+## **3. End-to-End Workflow: The Journey of a Document**
 
-1.  **Copy the Example**:
+Here is the step-by-step process for using the platform:
 
-    ```bash
-    cp .env.example .env
-    ```
+1.  **Upload a Document:** A user sends a `POST` request to `/api/v1/upload` with a file.
+    *   The system saves the file, creates a metadata record in Redis with `status: pending`, and instantly returns a `doc_id`.
+    *   A background task (`pre_analyze_document_task`) is triggered to analyze the document and add a `suggested_category` to its record in Redis.
 
-2.  **Edit the `.env` file**:
-    Open the new `.env` file and update the following variables:
+2.  **Verify the Category (Human-in-the-Loop):** A user (or frontend application) retrieves the document's metadata, views the `suggested_category`, and confirms or corrects it.
+    *   Send a `POST` request to `/api/v1/document/{doc_id}/categorize` with a JSON body: `{"category": "Vendor Invoice"}`.
+    *   The document's `status` in Redis is updated to `categorized`.
 
-    *   `SECRET_KEY`: Change this to a long, random string for security.
-    *   `OPENAI_API_KEY`: **This is mandatory**. Paste your API key here.
+3.  **Execute Automation:** The user triggers the main processing pipeline.
+    *   Send a `POST` request to `/api/v1/document/{doc_id}/process`.
+    *   This queues the master orchestrator task (`execute_playbook_task`).
+    *   The task runs the entire playbook associated with the category (e.g., "Vendor Invoice"), storing the results in Redis for auditing.
+    *   Upon completion, it automatically triggers the final RAG indexing task (`process_document_task`).
 
-    The other variables (`MONGO_URI`, `CELERY_BROKER_URL`, etc.) are pre-configured to work with the Docker Compose setup. You don't need to change them.
+4.  **Query the Knowledge Base:** Once indexed, the document is part of the conversational knowledge base.
+    *   Send a `POST` request to `/api/v1/ai/rag_query` with a JSON body: `{"query": "What was the total amount for invoice INV-12345?"}`.
+    *   The AI will use the indexed content to find and synthesize an answer.
 
-## 3. Launch Services with Docker Compose
+## **4. API Endpoint Reference**
 
-From the project root directory, run:
+### Document Management
 
-```bash
-docker-compose up --build
-```
+*   `POST /api/v1/upload`
+    *   **Action:** Uploads a new document.
+    *   **Body:** `multipart/form-data` with a `file` part.
+    *   **Returns (202):** `{"message": "...", "doc_id": "..."}`
 
-This command will:
--   Build the Docker images for the Flask API (`api`) and the Celery worker (`worker`).
--   Download and start `mongo` and `redis` containers.
--   Start all services and connect them.
+*   `GET /api/v1/documents`
+    *   **Action:** Lists all documents. Supports filtering by status.
+    *   **Query Params:** `?status=pending` (optional)
+    *   **Returns (200):** A JSON array of document metadata objects.
 
-Your environment is now running! The API is accessible at `http://localhost:5000`.
+*   `GET /api/v1/document/{doc_id}`
+    *   **Action:** Retrieves detailed metadata for a single document, including `task_status` and `playbook_results` if available.
+    *   **Returns (200):** A JSON object with the document's full metadata.
 
-## 4. Set Up the Database Vector Index
+*   `POST /api/v1/document/{doc_id}/categorize`
+    *   **Action:** Sets or overrides the document's category.
+    *   **Body:** `{"category": "Employment Agreement"}`
+    *   **Returns (200):** Confirmation message.
 
-To enable semantic search, you need to create a vector index in MongoDB. This is a one-time setup step.
+### Processing & Automation
 
-1.  **Find your MongoDB container name**:
+*   `POST /api/v1/document/{doc_id}/process`
+    *   **Action:** Triggers the full playbook and indexing pipeline for a categorized document.
+    *   **Returns (202):** Confirmation that the process has been queued.
 
-    ```bash
-    docker ps
-    ```
-    Look for the container using the `mongo` image (e.g., `intellidocs-mongo-1`).
+### Conversational AI
 
-2.  **Connect to the MongoDB shell**:
+*   `POST /api/v1/ai/rag_query`
+    *   **Action:** Asks a question to the entire indexed knowledge base.
+    *   **Body:** `{"query": "Your question here"}`
+    *   **Returns (200):** `{"answer": "...", "source_documents": [...]}`
 
-    ```bash
-    docker exec -it <your_mongo_container_name> mongosh
-    ```
+## **5. Extending the System: Adding New Playbooks**
 
-3.  **Run the setup script**: The script `docs/mongo_setup.js` contains the command to create the index. Copy its contents and paste them into the `mongosh` prompt. Press Enter.
+To add a new automation workflow (e.g., for "Purchase Orders"), simply edit the `playbooks.py` file:
 
-    You should see `"ok": 1`, confirming the index was created.
-
-## 5. Test the Application
-
-Your application is ready to use. You can interact with it via any API client (like Postman, Insomnia, or cURL).
-
-### Example: Upload a Document
-
-Use `curl` to upload a file. This example uses a simple text file.
-
-1.  **Create a test file**:
-
-    ```bash
-    echo "This is a test invoice for Acme Corp for the amount of $500." > test.txt
-    ```
-
-2.  **Send the upload request**:
-
-    ```bash
-    curl -X POST -F "file=@test.txt" http://localhost:5000/api/documents/upload
-    ```
-
-### Example: Check Document Status
-
-After uploading, you will get a response with a `document_id`. You can use this ID to check the processing status.
-
-```bash
-curl http://localhost:5000/api/documents/<your_document_id>
-```
-
-Initially, the status will be `PENDING` or `PROCESSING`. After a few seconds, it should change to `COMPLETED`, and you will see the extracted `kvps` and `category`.
-
-### Example: Perform a Semantic Search
-
-Once a document is processed, you can search for it based on its content.
-
-```bash
-curl -X POST -H "Content-Type: application/json" -d '{"query": "Acme invoice"}' http://localhost:5000/api/documents/search
-```
-
-This will return a list of documents semantically related to your query.
+1.  Add a new entry to 

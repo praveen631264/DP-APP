@@ -1,0 +1,46 @@
+{
+  "document_id": "test_doc_for_monitoring",
+  "original_file_path": "/fake/path/to/file.pdf",
+  "status": "new",
+  "created_at": "2024-05-22T12:00:00Z",
+  "updated_at": "2025-10-12T22:33:53.803609",
+  "global_key_values": {},
+  "playbook_runs": [
+    {
+      "run_id": "run_1760308432",
+      "playbook_id": "pb_monitor_test",
+      "run_timestamp": "2025-10-12T22:33:52.880325",
+      "status": "running",
+      "steps": [
+        {
+          "step_id": "a4a65763-ce9f-40a6-a80c-ee355c3580d7",
+          "step_order": 1,
+          "name": "Initial Extraction",
+          "status": "failure",
+          "queue_time": "2025-10-12T22:33:52.880271",
+          "start_time": "2025-10-12T22:33:52.880995",
+          "end_time": "2025-10-12T22:33:53.803576",
+          "duration_seconds": 0.922581,
+          "worker_id": "celery@worker-1.local",
+          "output": null,
+          "error_log": {
+            "error": "Failed to connect to external API for step Initial Extraction"
+          }
+        },
+        {
+          "step_id": "5e216700-202d-4521-ad32-6e255f2d74db",
+          "step_order": 2,
+          "name": "Call External API",
+          "status": "pending",
+          "queue_time": "2025-10-12T22:33:52.880314",
+          "start_time": null,
+          "end_time": null,
+          "duration_seconds": null,
+          "worker_id": null,
+          "output": null,
+          "error_log": null
+        }
+      ]
+    }
+  ]
+}

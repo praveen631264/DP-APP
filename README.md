@@ -1,80 +1,111 @@
-# AI-Powered Document Management API
 
-This project is a sophisticated, AI-powered Flask API for managing and understanding documents. It provides a complete, end-to-end solution for uploading documents, processing them asynchronously, extracting key information, and conversing with them through a chat interface.
+# Bugger Agent: Automated Monitoring & Self-Healing System
 
-Built on a modern, scalable architecture, it leverages MongoDB Atlas for data persistence and Redis for message queuing.
+This project is a Python-based web application that includes an automated monitoring and response system called the "Bugger Agent." The system is designed to watch for errors in application logs, automatically attempt self-healing actions, and create incidents for issues that require manual intervention. It also features a complete end-to-end (E2E) and Behavior-Driven Development (BDD) testing framework.
 
-## Key Features
+## Core Features
 
-- **Document Upload**: Securely upload documents (PDF, DOCX, TXT, etc.) via a REST API.
-- **Asynchronous AI Processing**: Offloads heavy AI tasks to a Celery worker using Redis, ensuring the API remains responsive and fault-tolerant.
-- **MongoDB Atlas**: The single source of truth for all data, including file storage (GridFS), metadata, and vector embeddings.
-- **Conversational AI Chat**: A powerful chat endpoint uses MongoDB Atlas Vector Search to find relevant documents and a Large Language Model (LLM) to answer questions.
-- **Failure Recovery**: An endpoint to re-trigger the AI processing for documents that may have failed.
-- **Human-in-the-Loop**: Endpoints allow users to validate or correct the AI's extracted data.
+- **Flask Web Server**: A core API built with Python and Flask to manage documents and playbooks.
+- **Structured Logging**: Centralized, JSON-formatted logging for reliable, machine-readable logs.
+- **Bugger Monitoring Agent**: A standalone agent (`monitoring_agent.py`) that tails the application log, detects critical errors, and triggers automated responses.
+- **Self-Healing & Escalation**: The agent can perform predefined self-healing actions or escalate issues by creating formal incidents.
+- **Live Incident Dashboard**: A frontend UI (built with HTML, CSS, and vanilla JS) that provides a live, auto-refreshing view of all incidents.
+- **E2E Testing Framework**: An API-driven test runner (`/api/v1/testing/run`) that executes a full suite of tests defined in `e2e_tests.json` and generates detailed reports.
+- **BDD Testing with Behave**: Human-readable feature tests written in Gherkin for clear, behavior-focused testing.
 
-## Getting Started
+## Project Structure
 
-### Prerequisites
-
-1.  **MongoDB Atlas Account**: A MongoDB Atlas cluster with Vector Search enabled is required.
-2.  **Redis**: A running Redis server. You can run this locally using Docker or use a managed cloud service.
-3.  **Project Dependencies**: The required Python packages are listed in `requirements.txt`.
-
-### 1. Configure Environment Variables
-
-1.  Copy the example file: `cp .env.example .env`
-2.  Edit `.env` and set the `MONGO_URI` and `CELERY_BROKER_URL` to your service addresses.
-
-### 2. Activate the Virtual Environment
-
-```bash
-source .venv/bin/activate
+```
+.
+├── app.log                 # Main application log file, monitored by the agent
+├── data_store.json         # Persistent JSON database for incidents and records
+├── devserver.sh            # Script to run the Flask development server
+├── document_store.py       # Handles data persistence
+├── e2e_test_runner.py      # Core logic for the E2E testing framework
+├── e2e_tests.json          # "Kit" defining all E2E test flows
+├── features/               # Directory for BDD tests (Behave)
+│   ├── playbook_execution.feature  # Gherkin feature file
+│   └── steps/
+│       └── playbook_steps.py   # Python step definitions for the feature
+├── logging_config.py       # Configures structured JSON logging
+├── main.py                 # Main Flask application, serves the UI and API
+├── monitoring_agent.py     # The Bugger Agent script
+├── notification_service.py # Service for sending incident notifications
+├── playbooks.py            # Logic for running application playbooks
+├── reports/                # Directory where E2E test reports are saved
+├── requirements.txt        # Python project dependencies
+├── static/                 # Frontend assets
+│   ├── app.js
+│   └── style.css
+└── templates/
+    └── index.html          # Main HTML for the incident dashboard
 ```
 
-### 3. Run the Application
+## Setup and Installation
 
-You need to run the services in separate terminals:
+1.  **Activate Virtual Environment**: The project is set up to use a Python virtual environment. You must activate it first.
+    ```bash
+    source .venv/bin/activate
+    ```
 
--   **Terminal 1: Flask Server**: `./devserver.sh`
--   **Terminal 2: Celery Worker**: `celery -A main.celery worker --loglevel=info`
--   **Terminal 3 (if running locally): Redis Server**: Ensure your Redis server is running.
+2.  **Install Dependencies**: Install all required Python packages.
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+## Running the Application
+
+The system requires two separate processes to be run in two different terminals.
+
+**Terminal 1: Start the Web Server & UI**
+
+This command runs the Flask server, which also serves the API and the frontend dashboard.
+
+```bash
+./devserver.sh
+```
+
+- The UI will be available at the URL provided in the preview panel.
+
+**Terminal 2: Start the Bugger Monitoring Agent**
+
+This command starts the agent, which will begin monitoring `app.log` for errors.
+
+```bash
+# Make sure to activate the virtual environment in this terminal too!
+source .venv/bin/activate
+
+python monitoring_agent.py
+```
+
+## How to Use the Testing Frameworks
+
+Make sure the web server is running before executing any tests.
+
+### 1. End-to-End (E2E) Tests
+
+To run the entire suite of E2E tests defined in `e2e_tests.json`, send a POST request to the testing endpoint. A full report will be returned in the response, and a copy will be saved in the `reports/` directory.
+
+```bash
+curl -X POST http://localhost:8080/api/v1/testing/run
+```
+
+### 2. Behavior-Driven Development (BDD) Tests
+
+To run the Gherkin feature tests, use the `behave` command.
+
+```bash
+# Make sure to activate the virtual environment first
+source .venv/bin/activate
+
+behave
+```
+
+The results will be printed directly to your terminal.
 
 ## API Endpoints
 
-Here is a summary of the available API endpoints.
-
-### Documents
-
--   `POST /documents`
-    -   **Description**: Uploads a new document. The file should be sent as multipart/form-data in the `file` field.
-    -   **On Success**: Returns `202 Accepted` with a JSON object of the created document. The document is queued for AI processing.
-
--   `GET /documents`
-    -   **Description**: Retrieves a list of all documents and their current status.
-
--   `GET /documents/<doc_id>`
-    -   **Description**: Retrieves the full details for a single document, including its status, text, and extracted KVPs.
-
--   `GET /documents/search`
-    -   **Description**: Searches for documents by filename based on a query string.
-    -   **Query Parameter**: `q=<search_term>`
-    -   **On Success**: Returns a list of matching documents.
-
--   `POST /documents/<doc_id>/reprocess`
-    -   **Description**: **(Failure Recovery)** Re-triggers the asynchronous AI processing for a document. This is useful if a document has a `Processing Failed` status.
-    -   **On Success**: Returns `202 Accepted` and re-queues the document for processing.
-
--   `PUT /documents/<doc_id>/kvp`
-    -   **Description**: **(Human-in-the-Loop)** Updates the Key-Value Pairs for a document after manual review. The request body should be a JSON object of the new KVPs.
-    -   **On Success**: The document's status is updated to `Validated`.
-
--   `PUT /documents/<doc_id>/recategorize`
-    -   **Description**: **(Human-in-the-Loop)** Manually changes the category of a document. The request body should be a JSON object with a `new_category` key and an optional `explanation` key.
-    -   **On Success**: The document's status is updated to `Re-categorized`.
-
-### Chat
-
--   `POST /chat`
-    -   **Description**: Asks a question about the processed documents. The request body should be a JSON object with a `query` key.
-    -   **On Success**: Returns an answer generated by the LLM, along with the source documents used to create the answer.
+- `GET /`: Serves the incident dashboard UI.
+- `POST /api/v1/documents/run-playbook`: Executes a playbook.
+- `GET /api/v1/incidents`: Returns a list of all recorded incidents.
+- `POST /api/v1/testing/run`: **Triggers the full E2E test suite.**

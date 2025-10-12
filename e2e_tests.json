@@ -1,0 +1,81 @@
+
+{
+  "test_suite_name": "Bugger Agent API End-to-End Tests",
+  "base_url": "http://127.0.0.1:8080",
+  "flows": [
+    {
+      "flow_name": "Health Check",
+      "steps": [
+        {
+          "step_name": "Get System Health",
+          "endpoint": "/api/v1/system/health",
+          "method": "GET",
+          "expected_status": 200
+        }
+      ]
+    },
+    {
+      "flow_name": "Invalid Playbook Run (Negative Test)",
+      "steps": [
+        {
+          "step_name": "Trigger Playbook with Missing Fields",
+          "endpoint": "/api/v1/documents/run-playbook",
+          "method": "POST",
+          "payload": {
+            "document_id": "test-doc-bad-input"
+          },
+          "expected_status": 400
+        }
+      ]
+    },
+    {
+      "flow_name": "Successful Playbook Run & Verification",
+      "steps": [
+        {
+          "step_name": "Trigger Playbook with Correct Fields",
+          "endpoint": "/api/v1/documents/run-playbook",
+          "method": "POST",
+          "payload": {
+            "document_id": "test-doc-e2e-success",
+            "playbook_id": "pb_monitor_test",
+            "catalog_id": "cat_monitor_test"
+          },
+          "expected_status": 200,
+          "capture": {
+            "from": "body.document_id",
+            "as": "doc_id_from_run"
+          }
+        },
+        {
+          "step_name": "Verify Document Record Was Created",
+          "endpoint": "/api/v1/documents/{{doc_id_from_run}}",
+          "method": "GET",
+          "expected_status": 200
+        }
+      ]
+    },
+    {
+      "flow_name": "Chat Endpoint Test",
+      "steps": [
+        {
+            "step_name": "Send valid chat message",
+            "endpoint": "/api/v1/chat",
+            "method": "POST",
+            "payload": {
+                "message": "hello"
+            },
+            "expected_status": 200
+        },
+        {
+            "step_name": "Send invalid chat message",
+            "endpoint": "/api/v1/chat",
+            "method": "POST",
+            "payload": {
+                "msg": "invalid"
+            },
+            "expected_status": 400
+        }
+      ]
+    }
+  ]
+}

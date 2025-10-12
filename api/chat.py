@@ -1,112 +1,101 @@
 
-import json
 from flask import Blueprint, request, jsonify
-import boto3
-import os
+import chromadb
+from sentence_transformers import SentenceTransformer
+from langchain.chains import RetrievalQA
+from langchain.prompts import PromptTemplate
+from langchain.llms.fake import FakeListLLM # Using a fake LLM for demonstration
+from langchain.vectorstores import Chroma
 
 # --- Blueprint Setup ---
-# Note: The 'documents' and 'categories' are passed in from the main app factory
 chat_api = Blueprint('chat_api', __name__)
-documents_ref = None
-categories_ref = None
 
-def init_chat_api(documents, categories):
-    global documents_ref, categories_ref
-    documents_ref = documents
-    categories_ref = categories
+# --- Constants ---
+CHROMA_PERSIST_DIR = "chroma_db"
+CHROMA_COLLECTION_NAME = "knowledge_base"
 
-# --- AWS Bedrock Configuration ---
-# It's best practice to configure your region and credentials via environment variables
-# or the AWS config file (~/.aws/config).
-# Example Environment Variables:
-# AWS_REGION="us-east-1"
-# AWS_ACCESS_KEY_ID="YOUR_KEY"
-# AWS_SECRET_ACCESS_KEY="YOUR_SECRET"
-bedrock_runtime = boto3.client(
-    service_name='bedrock-runtime', 
-    region_name=os.environ.get("AWS_REGION", "us-east-1") # Default to us-east-1 if not set
+# --- Load Models and Clients ---
+# These are loaded once when the Flask app starts to ensure efficiency.
+print("Loading SentenceTransformer model for chat...")
+embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
+print("Chat model loaded.")
+
+print("Connecting to ChromaDB for chat...")
+chroma_client = chromadb.PersistentClient(path=CHROMA_PERSIST_DIR)
+vectorstore = Chroma(
+    client=chroma_client,
+    collection_name=CHROMA_COLLECTION_NAME,
+    embedding_function=embedding_model # This will use the model to embed queries
 )
+print("ChromaDB connection established for chat.")
 
-# --- Chat Endpoint ---
 
-@chat_api.route('/api/v1/ai/chat/<string:doc_id>', methods=['POST'])
-def handle_chat(doc_id):
+# --- RAG Endpoint ---
+
+@chat_api.route('/api/v1/ai/rag_query', methods=['POST'])
+def rag_query():
     """
-    Handles chat requests for a specific document using AWS Bedrock.
+    Handles a user query using the Retrieval-Augmented Generation (RAG) pipeline.
     """
-    global documents_ref, categories_ref
-    
     data = request.get_json()
-    user_message = data.get('message')
-    
-    if not user_message:
-        return jsonify({"error": "No message provided"}), 400
+    query = data.get('query')
 
-    # Find the document and its category
-    doc = next((d for d in documents_ref if d['id'] == doc_id), None)
-    if not doc:
-        return jsonify({"error": "Document not found"}), 404
-        
-    category = next((c for c in categories_ref if c['id'] == doc['categoryId']), None)
-    category_name = category['name'] if category else "N/A"
+    if not query:
+        return jsonify({"error": "'query' is a required field."}), 400
 
-    # --- Construct the Prompt for Bedrock ---
-    # This prompt provides context to the model, telling it about the document
-    # and what the user is asking.
-    prompt = f"""
-        Human: You are an intelligent assistant. You are analyzing a document named "{doc['name']}" which is classified as a "{category_name}".
-        The full content of the document is:
-        <document_content>
-        {doc.get('content', 'No content available.')}
-        </document_content>
+    print(f"Received RAG query: {query}")
 
-        A user is asking a question about this document.
-        User's question: "{user_message}"
+    # 1. Retrieve relevant documents from ChromaDB
+    # The vectorstore automatically handles embedding the query and finding similar docs.
+    retriever = vectorstore.as_retriever(search_kwargs={"k": 5})
+    # k=5 means it will retrieve the top 5 most relevant chunks.
 
-        Please provide a helpful and concise answer based *only* on the information contained within the document content provided above. Do not make up information. If the answer is not in the document, say so.
+    # 2. Define the Prompt Template
+    # This guides the LLM to answer based *only* on the provided context.
+    prompt_template = """
+    You are an assistant for question-answering tasks.
+    Use the following pieces of retrieved context to answer the question.
+    If you don't know the answer, just say that you don't know.
+    Use three sentences maximum and keep the answer concise.
 
-        Assistant:
+    Context: {context}
+    Question: {question}
+
+    Answer:
     """
+    PROMPT = PromptTemplate(
+        template=prompt_template, input_variables=["context", "question"]
+    )
 
-    # --- Invoke Bedrock (Claude 3 Sonnet) ---
+    # 3. Set up the RAG Chain
+    # We use a FakeListLLM for demonstration purposes. In a real application,
+    # you would replace this with a connection to a real LLM (e.g., from OpenAI, Anthropic, or a local one).
+    # The response from the fake LLM will be based on the retrieved context.
+    llm = FakeListLLM(responses=["Based on the documents, the answer is...", "I found relevant information indicating that...", "The context suggests that..."])
+    
+    qa_chain = RetrievalQA.from_chain_type(
+        llm=llm,
+        chain_type="stuff", # "stuff" means it will "stuff" all retrieved chunks into the prompt
+        retriever=retriever,
+        return_source_documents=True,
+        chain_type_kwargs={"prompt": PROMPT}
+    )
+
+    # 4. Execute the chain and get the result
     try:
-        # Define the payload for the model
-        body = json.dumps({
-            "anthropic_version": "bedrock-2023-05-31",
-            "max_tokens": 1024,
-            "messages": [
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": prompt
-                        }
-                    ]
-                }
-            ]
-        })
+        result = qa_chain({"query": query})
         
-        # Invoke the model
-        response = bedrock_runtime.invoke_model(
-            body=body, 
-            modelId='anthropic.claude-3-sonnet-20240229-v1:0',
-            accept='application/json', 
-            contentType='application/json'
-        )
-        
-        # Parse the response
-        response_body = json.loads(response.get('body').read())
-        ai_response = response_body.get('content')[0].get('text')
+        source_docs = [{
+            "content": doc.page_content,
+            "metadata": doc.metadata
+        } for doc in result['source_documents']]
 
         return jsonify({
-            "user_message": user_message,
-            "ai_response": ai_response
+            "answer": result['result'],
+            "source_documents": source_docs
         })
 
     except Exception as e:
-        # Log the error for debugging
-        print(f"Bedrock invocation error: {e}")
-        # Return a generic error to the user
-        return jsonify({"error": "Failed to communicate with the AI model."}), 500
-
+        # This could happen if the database is empty or another error occurs.
+        print(f"An error occurred during the RAG chain execution: {e}")
+        return jsonify({"error": "Failed to process the query. The knowledge base might be empty or an internal error occurred."}), 500

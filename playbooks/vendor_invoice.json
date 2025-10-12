@@ -1,0 +1,25 @@
+
+{
+  "name": "Vendor Invoice Processing",
+  "description": "Extracts key details from an invoice and sends a notification email.",
+  "steps": [
+    {
+      "step": 1,
+      "task_type": "llm_extract",
+      "name": "Extract Invoice Details",
+      "description": "Uses an LLM to extract structured data from the document.",
+      "prompt_template": "From the following document text, extract the following fields as a JSON object: 'invoice_number', 'vendor_name', 'amount', and 'due_date'. If a field is not present, use null. Document Text: {document_content}",
+      "output_variable": "extracted_data"
+    },
+    {
+      "step": 2,
+      "task_type": "email_send",
+      "name": "Send Approval Email (Simulated)",
+      "description": "Formats and sends an email with the extracted invoice data.",
+      "input_variables": ["extracted_data"],
+      "to": "approvals@example.com",
+      "subject_template": "New Invoice from {extracted_data.vendor_name} for {extracted_data.amount}",
+      "body_template": "Please review the attached invoice.\n\nDetails:\n- Vendor: {extracted_data.vendor_name}\n- Invoice Number: {extracted_data.invoice_number}\n- Amount: {extracted_data.amount}\n- Due Date: {extracted_data.due_date}"
+    }
+  ]
+}

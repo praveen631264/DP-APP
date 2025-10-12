@@ -1,2 +1,10 @@
 Flask
 Flask-Cors
+celery
+redis
+langchain
+langchain-openai
+google-cloud-storage
+requests
+python-dotenv
+behave
