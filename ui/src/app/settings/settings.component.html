@@ -1,0 +1,101 @@
+<div class="page-container">
+  <div class="page-header">
+    <h1>User Settings</h1>
+    <p>Manage your personal preferences and profile information.</p>
+  </div>
+
+  <div class="content-area">
+    <mat-card>
+      <mat-card-header>
+        <mat-card-title>Profile</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <p><strong>Email:</strong> {{ currentUserEmail$ | async }}</p>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card>
+      <mat-card-header>
+        <mat-card-title>Appearance</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <mat-form-field appearance="outline">
+          <mat-label>Application Theme</mat-label>
+          <mat-select [value]="activeTheme$ | async" (selectionChange)="onThemeChange($event.value)">
+            <mat-option *ngFor="let theme of availableThemes" [value]="theme.name">{{ theme.displayName }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card>
+      <mat-card-header>
+        <mat-card-title>Security</mat-card-title>
+      </mat-card-header>
+      <mat-card-content [formGroup]="passwordForm">
+        <p>Change your password. It must be at least 8 characters long.</p>
+        <mat-form-field appearance="outline">
+          <mat-label>Current Password</mat-label>
+          <input matInput formControlName="currentPassword" type="password" required>
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>New Password</mat-label>
+          <input matInput formControlName="newPassword" type="password" required>
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Confirm New Password</mat-label>
+          <input matInput formControlName="confirmPassword" type="password" required>
+          <mat-error *ngIf="passwordForm.hasError('passwordMismatch')">
+            Passwords do not match.
+          </mat-error>
+        </mat-form-field>
+        <button mat-flat-button color="primary" (click)="changePassword()" [disabled]="passwordForm.invalid">
+          Change Password
+        </button>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card>
+      <mat-card-header>
+        <mat-card-title>Two-Factor Authentication (MFA)</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <div *ngIf="!(mfaEnabled$ | async)">
+          <div *ngIf="!isSettingUpMfa">
+            <p>Add an extra layer of security to your account.</p>
+            <button mat-flat-button color="primary" (click)="initiateMfaSetup()">Enable MFA</button>
+          </div>
+  
+          <div *ngIf="isSettingUpMfa">
+            <p>1. Scan the QR code with your authenticator app (e.g., Google Authenticator, Authy).</p>
+            <div class="qr-code-container">
+              <img [src]="mfaQrCode" alt="MFA QR Code" *ngIf="mfaQrCode">
+              <mat-spinner *ngIf="!mfaQrCode" diameter="50"></mat-spinner>
+            </div>
+  
+            <p>2. Enter the 6-digit code from your app to verify and complete the setup.</p>
+            <form [formGroup]="mfaSetupForm" (ngSubmit)="verifyMfa()" class="mfa-form">
+              <mat-form-field appearance="outline">
+                <mat-label>Verification Code</mat-label>
+                <input matInput formControlName="totp_code" required>
+              </mat-form-field>
+              <button mat-flat-button color="primary" type="submit" [disabled]="mfaSetupForm.invalid">Verify & Enable</button>
+            </form>
+          </div>
+        </div>
+
+        <div *ngIf="mfaEnabled$ | async">
+          <p>Two-Factor Authentication is currently <strong>enabled</strong> on your account.</p>
+          <p>To disable it, please enter a code from your authenticator app.</p>
+          <form [formGroup]="mfaDisableForm" (ngSubmit)="disableMfa()" class="mfa-form">
+            <mat-form-field appearance="outline">
+              <mat-label>6-Digit Code</mat-label>
+              <input matInput formControlName="totp_code" required>
+            </mat-form-field>
+            <button mat-flat-button color="warn" type="submit" [disabled]="mfaDisableForm.invalid">Disable MFA</button>
+          </form>
+        </div>
+      </mat-card-content>
+    </mat-card>
+  </div>
+</div>

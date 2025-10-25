@@ -1,0 +1,50 @@
+<div class="editor-container">
+  <div class="sidebar">
+    <h2>Available Steps</h2>
+    <ul>
+      <li *ngFor="let stepType of objectKeys(stepMetadata)" (click)="addStep(stepType)">
+        {{ stepMetadata[stepType].name }}
+      </li>
+    </ul>
+  </div>
+
+  <div class="main-content">
+    <form [formGroup]="playbookForm" (ngSubmit)="savePlaybook()">
+      <div class="playbook-meta">
+        <input formControlName="name" placeholder="Playbook Name">
+        <input formControlName="category_name" placeholder="Category">
+        <input formControlName="final_status" placeholder="Final Status">
+        <button type="submit" [disabled]="!playbookForm.valid" class="save-btn">Save Playbook</button>
+      </div>
+
+      <div class="graph-container">
+        <ngx-graph
+          class="chart-container"
+          [links]="links"
+          [nodes]="nodes"
+          [update$]="update$"
+          (select)="onNodeClick($event)"
+        >
+        </ngx-graph>
+      </div>
+    </form>
+  </div>
+
+  <div class="step-editor-sidebar" [class.visible]="selectedStepIndex !== null">
+    <ng-container *ngIf="selectedStepIndex !== null">
+      <div [formGroup]="selectedStepFormGroup">
+        <div class="sidebar-header">
+          <h3>Edit: {{ selectedStepFormGroup.value.name }}</h3>
+          <button (click)="closeStepEditor()" class="close-btn">&times;</button>
+        </div>
+        <div class="step-params">
+          <div *ngFor="let param of getStepParams(steps.controls[selectedStepIndex].value.type)" class="form-field">
+            <label>{{ param.name }}</label>
+            <input [formControlName]="param.name" [type]="param.type || 'text'">
+          </div>
+        </div>
+        <button (click)="removeStep(selectedStepIndex)" type="button" class="remove-step-btn">Remove Step</button>
+      </div>
+    </ng-container>
+  </div>
+</div>

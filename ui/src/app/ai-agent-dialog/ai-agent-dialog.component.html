@@ -1,0 +1,17 @@
+<div class="dialog-container">
+  <h2 mat-dialog-title>AI Failure Analysis</h2>
+  <div mat-dialog-content class="chat-container">
+    <div class="messages">
+      <div *ngFor="let message of messages" class="message" [ngClass]="message.sender">
+        <p>{{ message.text }}</p>
+      </div>
+    </div>
+    <div class="input-area">
+      <input type="text" [(ngModel)]="userInput" (keyup.enter)="sendMessage()" placeholder="Ask a question...">
+      <button (click)="sendMessage()">Send</button>
+    </div>
+  </div>
+  <div mat-dialog-actions>
+    <button mat-button (click)="onNoClick()">Close</button>
+  </div>
+</div>

@@ -1,0 +1,36 @@
+<div class="detail-page-container" *ngIf="document$ | async as document; else loading">
+  <div class="page-header">
+    <button mat-icon-button routerLink="/documents" matTooltip="Back to Document List">
+      <mat-icon>arrow_back</mat-icon>
+    </button>
+    <div class="header-content">
+      <h1>{{ document.filename }}</h1>
+      <app-status-cell-renderer [status]="document.status"></app-status-cell-renderer>
+    </div>
+  </div>
+
+  <mat-tab-group mat-stretch-tabs="false" mat-align-tabs="start" class="detail-tabs" animationDuration="0ms">
+    <mat-tab label="Details & Chat">
+      <div class="panels-container">
+        <div class="panel kvp-panel">
+          <app-kvp-editor [document]="document"></app-kvp-editor>
+        </div>
+        <div class="panel document-viewer-panel">
+          <app-document-viewer [document]="document"></app-document-viewer>
+        </div>
+        <div class="panel chat-panel">
+          <app-chat-panel [document]="document"></app-chat-panel>
+        </div>
+      </div>
+    </mat-tab>
+    <mat-tab label="Processing Workflow">
+      <app-document-workflow-view [document]="document"></app-document-workflow-view>
+    </mat-tab>
+  </mat-tab-group>
+</div>
+
+<ng-template #loading>
+  <div class="loading-shade">
+    <mat-spinner></mat-spinner>
+  </div>
+</ng-template>

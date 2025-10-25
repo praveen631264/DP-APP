@@ -1,0 +1,13 @@
+<div class="task-management-container">
+  <div class="header">
+    <h1>Task Management</h1>
+  </div>
+  <ag-grid-angular
+    style="width: 100%; height: 500px;"
+    class="ag-theme-alpine-dark"
+    [rowData]="rowData"
+    [columnDefs]="columnDefs"
+    (gridReady)="onGridReady($event)"
+  >
+  </ag-grid-angular>
+</div>

@@ -1,0 +1,81 @@
+<div *ngIf="document" class="workflow-container">
+  <mat-card class="workflow-controls-card" [class.loading-actions]="isActionLoading">
+    <mat-card-header>
+      <mat-card-title>Workflow Controls</mat-card-title>
+      <mat-card-subtitle>Current Status: <strong>{{ document.status }}</strong></mat-card-subtitle>
+    </mat-card-header>
+    <mat-card-content>
+      <p>{{ document.status_message }}</p>
+    </mat-card-content>
+    <mat-card-actions align="end">
+      <button mat-stroked-button color="accent" [disabled]="!canRetry || isActionLoading" (click)="onRetry()">
+        <mat-icon>replay</mat-icon>
+        Retry
+      </button>
+      <button mat-stroked-button color="warn" [disabled]="!canStop || isActionLoading" (click)="onStop()">
+        <mat-icon>stop_circle</mat-icon>
+        Stop / Pause
+      </button>
+    </mat-card-actions>
+    <div *ngIf="isActionLoading" class="action-loader">
+      <mat-progress-spinner mode="indeterminate" diameter="24"></mat-progress-spinner>
+      <span>Sending command...</span>
+    </div>
+  </mat-card>
+
+  <div *ngIf="isLoading" class="graph-loader">
+    <mat-progress-spinner mode="indeterminate"></mat-progress-spinner>
+    <p>Loading Workflow...</p>
+  </div>
+
+  <div *ngIf="!isLoading && nodes.length > 0" class="graph-container">
+    <ngx-graph
+      class="chart-container"
+      [links]="links"
+      [nodes]="nodes"
+      [layout]="'dagre'"
+      [curve]="'dagre'"
+    >
+      <ng-template #nodeTemplate let-node>
+        <svg:g class="node-group">
+          <svg:rect
+            [attr.width]="150"
+            [attr.height]="40"
+            [attr.fill]="node.data.color"
+            [class.current-node]="node.data.isCurrent"
+          />
+          <svg:text alignment-baseline="central" [attr.x]="10" [attr.y]="20" class="node-label">
+            {{ node.label }}
+          </svg:text>
+        </svg:g>
+      </ng-template>
+    </ngx-graph>
+  </div>
+
+  <mat-card class="workflow-log-card">
+    <mat-card-header>
+      <mat-card-title>Task Log</mat-card-title>
+      <mat-card-subtitle>A detailed history of all processing events.</mat-card-subtitle>
+    </mat-card-header>
+    <mat-card-content>
+      <div *ngIf="isLoading" class="log-loader">
+        <mat-progress-spinner mode="indeterminate"></mat-progress-spinner>
+      </div>
+
+      <div *ngIf="!isLoading && history.length === 0" class="empty-log">
+        <p>No history found for this document yet.</p>
+      </div>
+
+      <div *ngIf="!isLoading && history.length > 0" class="log-list">
+        <div *ngFor="let event of history" class="log-item">
+          <mat-icon [color]="event.action.toLowerCase().includes('fail') ? 'warn' : 'primary'" class="log-icon">{{ event.action.toLowerCase().includes('fail') ? 'error' : 'info' }}</mat-icon>
+          <div class="log-content">
+            <span class="log-action">{{ event.action }}</span>
+            <span class="log-message" *ngIf="event.details?.message">{{ event.details.message }}</span>
+            <span class="log-timestamp">{{ event.timestamp | date:'medium' }}</span>
+          </div>
+        </div>
+      </div>
+    </mat-card-content>
+  </mat-card>
+</div>

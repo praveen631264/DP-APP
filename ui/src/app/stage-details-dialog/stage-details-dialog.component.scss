@@ -1,0 +1,55 @@
+.dialog-container {
+  padding: 2rem;
+  background-color: #2a2a2a;
+  border-radius: 10px;
+  color: #f0f0f0;
+
+  h2 {
+    font-size: 1.8rem;
+    font-weight: bold;
+    color: #00bfff;
+    text-shadow: 0 0 10px #00bfff;
+    margin-bottom: 1.5rem;
+  }
+
+  h3 {
+    font-size: 1.4rem;
+    color: #00bfff;
+    margin-top: 1.5rem;
+    margin-bottom: 1rem;
+  }
+
+  ul {
+    list-style: none;
+    padding: 0;
+  }
+
+  li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: #3a3a3a;
+    padding: 1rem;
+    border-radius: 5px;
+    margin-bottom: 0.5rem;
+
+    .actions {
+      display: flex;
+
+      button {
+        margin-left: 0.5rem;
+      }
+    }
+  }
+
+  pre {
+    background-color: #1a1a1a;
+    padding: 1rem;
+    border-radius: 5px;
+    white-space: pre-wrap;
+  }
+
+  .mat-dialog-actions {
+    justify-content: flex-end;
+  }
+}

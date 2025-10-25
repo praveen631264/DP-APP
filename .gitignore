@@ -1,6 +1,7 @@
 # IDE and environment files
 .idea/
 .vscode/
+.github/
 
 # Python virtual environment
 .venv/
@@ -17,3 +18,10 @@ __pycache__/
 dist/
 build/
 *.egg-info/
+
+# Node.js dependencies
+/ui/node_modules/
+
+# Angular build artifacts and cache
+/ui/dist/
+/ui/.angular/

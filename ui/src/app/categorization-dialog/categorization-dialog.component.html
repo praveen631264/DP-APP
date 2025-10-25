@@ -1,0 +1,20 @@
+<div class="dialog-container">
+  <h2>Categorization</h2>
+  <div class="form-field">
+    <label for="categories">Categories</label>
+    <div class="category-tags">
+      <span *ngFor="let category of categories" class="tag">
+        {{ category }}
+        <button (click)="removeCategory(category)">x</button>
+      </span>
+    </div>
+    <div class="add-category">
+      <input type="text" #categoryName placeholder="Add category">
+      <button (click)="addCategory(categoryName.value)">Add</button>
+    </div>
+  </div>
+  <div class="actions">
+    <button type="button" class="btn-cancel">Cancel</button>
+    <button type="submit" class="btn-save">Save</button>
+  </div>
+</div>

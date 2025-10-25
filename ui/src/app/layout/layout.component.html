@@ -1,0 +1,24 @@
+<div class="layout" [class.sidebar-collapsed]="isSidebarCollapsed">
+  <div class="sidebar">
+    <div class="logo">
+      IntelliDocs
+    </div>
+    <ul class="nav">
+      <li><a routerLink="/dashboard" routerLinkActive="active"><i class="fas fa-tachometer-alt"></i><span>Dashboard</span></a></li>
+      <li><a routerLink="/documents" routerLinkActive="active"><i class="fas fa-file-alt"></i><span>Documents</span></a></li>
+      <li><a routerLink="/playbooks" routerLinkActive="active"><i class="fas fa-book"></i><span>Playbooks</span></a></li>
+      <li *ngIf="authService.hasRole('admin') | async"><a routerLink="/category-management" routerLinkActive="active"><i class="fas fa-sitemap"></i><span>Categories</span></a></li>
+      <li *ngIf="authService.hasRole('admin') | async"><a routerLink="/user-management" routerLinkActive="active"><i class="fas fa-users"></i><span>User Management</span></a></li>
+      <li *ngIf="authService.hasRole('admin') | async"><a routerLink="/audit-log" routerLinkActive="active"><i class="fas fa-history"></i><span>Audit Log</span></a></li>
+      <li><a routerLink="/global-search" routerLinkActive="active"><i class="fas fa-search"></i><span>Ask Anything</span></a></li>
+      <li><a routerLink="/workflow-monitoring" routerLinkActive="active"><i class="fas fa-project-diagram"></i><span>Workflow Monitoring</span></a></li>
+      <li><a routerLink="/settings" routerLinkActive="active"><i class="fas fa-cog"></i><span>Settings</span></a></li>
+    </ul>
+  </div>
+  <div class="content">
+    <button class="sidebar-toggle" (click)="toggleSidebar()">
+      <i class="fas fa-bars"></i>
+    </button>
+    <router-outlet></router-outlet>
+  </div>
+</div>

@@ -1,0 +1,53 @@
+<div class="viewer-container">
+  <div class="panel chat-panel">
+    <h2>AI Chat</h2>
+    <app-chat-panel></app-chat-panel>
+  </div>
+  <div class="panel info-panel">
+    <h2>Document Info</h2>
+    <div class="info-section">
+      <h3>Download</h3>
+      <a href="#" class="download-link">Download Document</a>
+    </div>
+    <div class="info-section">
+      <div class="header">
+        <h3>Categories</h3>
+        <button class="btn-icon" (click)="openCategorizationDialog()"><i class="fas fa-edit"></i></button>
+      </div>
+      <div class="category-tags">
+        <span class="tag">Invoice</span>
+        <span class="tag">Finance</span>
+      </div>
+    </div>
+    <div class="info-section">
+      <h3>Playbook Outputs</h3>
+      <div class="playbook-outputs">
+        <div class="output-item">
+          <h4>Invoice Extraction</h4>
+          <p>Status: Completed</p>
+        </div>
+        <div class="output-item">
+          <h4>Data Validation</h4>
+          <p>Status: Pending</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="panel output-panel">
+    <h2>Extracted Data</h2>
+    <div class="extracted-data">
+      <div class="data-item">
+        <span class="key">Invoice Number:</span>
+        <span class="value">INV-12345</span>
+      </div>
+      <div class="data-item">
+        <span class="key">Date:</span>
+        <span class="value">2025-10-19</span>
+      </div>
+      <div class="data-item">
+        <span class="key">Total Amount:</span>
+        <span class="value">$1,250.00</span>
+      </div>
+    </div>
+  </div>
+</div>

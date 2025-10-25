@@ -3,17 +3,21 @@
 # =============================================================================
 # Local Development Startup Script
 # =============================================================================
-# This script is for starting the application on your local machine. 
-# It simplifies the startup process by using docker-compose for background
-# services and providing clear instructions for the application components.
+# This script starts all application services using docker-compose.
+# It will start the following services in the background:
+# - MongoDB (Database)
+# - Redis (Celery Broker)
+# - Ollama (AI Model Server)
+# - Flask API (Application Server)
+# - Celery Worker (Background Task Processor)
+#
+# To view the logs of the running services, you can use:
+# docker-compose logs -f
 # =============================================================================
 
-echo "Starting Application for Local Development..."
+echo "Starting all application services for Local Development..."
 
-# --- Step 1: Start Background Services with Docker Compose ---
-echo "--> Starting Kafka, and Zookeeper using docker-compose..."
-
-docker-compose up -d kafka
+docker-compose up -d
 
 if [ $? -ne 0 ]; then
     echo "Error: docker-compose failed to start." >&2
@@ -21,24 +25,7 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-echo "--> Background services started successfully."
-
-# --- Step 2: Instructions for Celery Worker & Flask Server ---
-echo ""
-echo "--- Your Action Required ---"
-echo "Please open TWO new terminal windows/tabs to start the application components:"
-
-echo ""
-echo "1. In the FIRST new terminal, start the Celery Worker:"
-echo "   --------------------------------------------------"
-echo "   source .venv/bin/activate"
-echo "   celery -A app.celery_worker.celery_app worker --loglevel=info"
-
-echo ""
-echo "2. In the SECOND new terminal, start the Flask Web Server:"
-echo "   ---------------------------------------------------"
-echo "   ./devserver.sh"
-
-echo ""
-echo "Once both services are running, the Flask API will be available at http://localhost:5000"
-echo "You can stop the background services at any time by running: docker-compose down"
+echo "--> All services started successfully."
+echo "--> To force a rebuild of the images, run: ./rebuild_local.sh"
+echo "The Flask API will be available at http://localhost:8000"
+echo "You can stop the services at any time by running: ./shutdown_local.sh"

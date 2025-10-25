@@ -1,0 +1,35 @@
+<div class="kvp-container">
+  <div class="kvp-header">
+    <h3>Extracted Data</h3>
+    <div>
+      <button *ngIf="isEditing" mat-icon-button matTooltip="Cancel" (click)="toggleEditMode()">
+        <mat-icon>close</mat-icon>
+      </button>
+      <button *ngIf="isEditing" mat-icon-button matTooltip="Save Changes" color="primary" (click)="onSave()" [disabled]="kvpForm.pristine">
+        <mat-icon>save</mat-icon>
+      </button>
+      <button *ngIf="!isEditing" mat-icon-button matTooltip="Edit Data" (click)="toggleEditMode()">
+        <mat-icon>edit</mat-icon>
+      </button>
+    </div>
+  </div>
+
+  <div class="kvp-content" [formGroup]="kvpForm">
+    <div *ngIf="kvpAsArray.length === 0" class="empty-state">
+      <mat-icon>find_in_page</mat-icon>
+      <p>No key-value data has been extracted yet.</p>
+    </div>
+
+    <div *ngFor="let item of kvpAsArray" class="kvp-item" [class.editing]="isEditing">
+      <div *ngIf="!isEditing">
+        <span class="kvp-key">{{ item.key }}</span>
+        <span class="kvp-value">{{ item.value }}</span>
+      </div>
+
+      <mat-form-field *ngIf="isEditing" appearance="outline" class="kvp-input">
+        <mat-label>{{ item.key }}</mat-label>
+        <input matInput [formControlName]="item.key">
+      </mat-form-field>
+    </div>
+  </div>
+</div>

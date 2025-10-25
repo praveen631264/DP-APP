@@ -1,0 +1,30 @@
+.status-badge-container {
+  display: flex;
+  align-items: center;
+  height: 100%;
+}
+
+.status-badge {
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #fff;
+  text-transform: capitalize;
+}
+
+.status-completed {
+  background-color: #28a745; // Green
+}
+
+.status-processing {
+  background-color: #007bff; // Blue
+}
+
+.status-failed {
+  background-color: #dc3545; // Red
+}
+
+.status-default {
+  background-color: #6c757d; // Grey
+}

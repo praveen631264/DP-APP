@@ -1,0 +1,47 @@
+@use '@angular/material' as mat;
+
+:host {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  background-color: #f4f7fa;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 400px;
+  padding: 24px;
+}
+
+mat-card-header {
+  text-align: center;
+  padding-bottom: 24px;
+
+  h1 {
+    margin: 0;
+    font-weight: 400;
+  }
+}
+
+mat-card-content {
+  form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+}
+
+.login-button {
+  height: 48px;
+  margin-top: 8px;
+
+  mat-progress-spinner {
+    display: inline-block;
+    vertical-align: middle;
+  }
+}
+
+mat-form-field {
+  width: 100%;
+}

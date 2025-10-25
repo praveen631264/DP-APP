@@ -1,0 +1,40 @@
+<div class="dialog-container" [formGroup]="categoryForm">
+  <h1 mat-dialog-title>Create New Category</h1>
+  <div mat-dialog-content>
+    <div class="form-field">
+      <label for="name">Category Name</label>
+      <input id="name" type="text" formControlName="name" placeholder="e.g., Invoices, Receipts">
+    </div>
+
+    <div class="form-field">
+      <label for="description">Description</label>
+      <input id="description" type="text" formControlName="description" placeholder="A brief description of the category">
+    </div>
+
+    <div class="form-field">
+      <label for="prompt">Extraction Prompt</label>
+      <p class="form-hint">Describe what information to extract from documents in this category.</p>
+      <textarea id="prompt" name="prompt" formControlName="prompt"></textarea>
+      <button type="button" (click)="getPromptSuggestion()" [disabled]="isSuggesting">
+        {{ isSuggesting ? 'Generating...' : 'Suggest with AI' }}
+      </button>
+    </div>
+
+    <div class="form-field">
+      <label>Workflow Steps</label>
+      <div cdkDropList class="dnd-list" (cdkDropListDropped)="drop($event)">
+        <div *ngFor="let step of workflowSteps.controls; let i = index" class="dnd-item" cdkDrag>
+          <span>{{ step.value.name }}</span> <button type="button" (click)="removeStep(i)">Remove</button>
+        </div>
+      </div>
+      <div class="add-step-container">
+        <input #stepNameInput placeholder="New step name" (keyup.enter)="addStep(stepNameInput.value); stepNameInput.value=''">
+        <button type="button" (click)="addStep(stepNameInput.value); stepNameInput.value=''">Add Step</button>
+      </div>
+    </div>
+  </div>
+  <div mat-dialog-actions>
+    <button (click)="onCancel()">Cancel</button>
+    <button [disabled]="categoryForm.invalid" (click)="onSave()">Save</button>
+  </div>
+</div>

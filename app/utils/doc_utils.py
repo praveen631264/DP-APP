@@ -5,6 +5,7 @@ import openpyxl
 import docx
 import os
 from PyPDF2 import PdfReader
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_community.chat_models import ChatOllama
@@ -13,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 # --- Text Extraction Functions ---
 
-def get_doc_text(file_content, content_type):
+def extract_text(file_content, content_type):
     """
     Extracts text from a document's byte content based on its MIME type.
     """
@@ -55,60 +56,21 @@ def get_doc_text(file_content, content_type):
     return text.strip()
 
 
-# --- AI-Powered Extraction Functions ---
+# --- AI-Powered Extraction and Routing Functions ---
 
-def get_kvps_and_category(text: str, examples: list = []):
+def route_to_category(text: str, all_categories: list, llm: ChatOllama) -> str:
     """
-    Extracts Key-Value Pairs (KVPs) and determines a category from the text,
-    guided by provided examples.
+    Uses a lightweight prompt to quickly classify a document into a category.
+    This acts as the "Head Chef" or router for the Mixture-of-Experts architecture.
     """
-    logger.info("Initializing local LLM call to extract KVPs and category.")
-
+    logger.info("Routing document to category...")
     if not text or not text.strip():
-        logger.warning("Input text is empty. Skipping LLM call.")
-        return {}, None
+        logger.warning("Input text is empty. Cannot route.")
+        return "Uncategorized"
 
-    # --- Construct the System Prompt ---
-    system_prompt = """You are an expert document analysis AI. Your task is to analyze the user's document text and perform two actions:
-1.  **Categorize the Document**: Classify the document into a relevant category.
-2.  **Extract Key-Value Pairs (KVPs)**: Identify and extract important information from the document as key-value pairs.
-
-You MUST return the output as a single, valid JSON object with two keys: 'category' and 'kvps'. The 'kvps' value must be a JSON object itself. Do not provide any other text, explanation, or markdown formatting."""
-
-    # --- Inject Fine-Tuning Examples into the Prompt ---
-    if examples:
-        example_str = "\n\nHere are some examples of how to categorize documents correctly:\n"
-        for ex in examples:
-            # We truncate the example text to keep the prompt concise
-            truncated_text = (ex['text'][:200] + '...') if len(ex['text']) > 200 else ex['text']
-            example_str += f"- Document text starting with: '{truncated_text}' should be categorized as '{ex['category']}'.\n"
-        
-        system_prompt += example_str
-    
-    system_prompt += """\n\nNow, analyze the following document. Remember to only return the final JSON object.
-
-Example output format:
-{
-  "category": "Invoice",
-  "kvps": {
-    "invoice_number": "INV-12345",
-    "customer_name": "John Doe",
-    "total_amount": "500.00"
-  }
-}"""
-
-    # --- LLM and Prompt Configuration ---
-
-    try:
-        # Connect to the local LLM using Ollama
-        llm = ChatOllama(
-            base_url=os.environ.get("OLLAMA_BASE_URL"),
-            model=os.environ.get("CHAT_MODEL_NAME", "phi3:mini"),
-            temperature=0
-        )
-    except Exception as e:
-        logger.error(f"Failed to initialize the Ollama LLM. Ensure Ollama is running and accessible. Error: {e}", exc_info=True)
-        raise ConnectionError("Could not connect to the local AI model via Ollama.") from e
+    category_list = ", ".join(all_categories)
+    system_prompt = f"""You are an expert document classifier. Your only task is to classify the document text into one of the following categories: [{category_list}].
+You MUST return only the single, most appropriate category name from the list and nothing else. If no category fits, return "Uncategorized"."""
 
     prompt = ChatPromptTemplate.from_messages(
         [
@@ -116,11 +78,57 @@ Example output format:
             ("user", "{input_text}"),
         ]
     )
+    chain = prompt | llm | StrOutputParser()
 
+    try:
+        logger.info("Invoking router LLM for classification...")
+        # Truncate input text for speed, as routing doesn't need the full document.
+        llm_response = chain.invoke({"input_text": text[:4000]})
+        
+        # Basic cleaning of the model's output
+        category = llm_response.strip().replace("\"", "").replace("'", "")
+
+        if category not in all_categories:
+            logger.warning(f"Router LLM returned a category '{category}' not in the approved list. Defaulting to Uncategorized.")
+            return "Uncategorized"
+        
+        logger.info(f"Document successfully routed to category: '{category}'")
+        return category
+
+    except Exception as e:
+        logger.error(f"An error occurred during routing: {e}", exc_info=True)
+        return "Uncategorized"
+
+def extract_kvps(text: str, extraction_prompt: str, llm: ChatOllama) -> dict:
+    """
+    Extracts Key-Value Pairs (KVPs) from text using a specific, provided prompt.
+    """
+    logger.info("Extracting KVPs with a specific prompt...")
+    if not text or not text.strip():
+        logger.warning("Input text is empty. Skipping LLM call.")
+        return {}
+
+    system_prompt = f"""{extraction_prompt}
+
+You MUST return the output as a single, valid JSON object. Do not provide any other text, explanation, or markdown formatting.
+
+Example output format:
+{{
+  "invoice_number": "INV-12345",
+  "customer_name": "John Doe",
+  "total_amount": "500.00"
+}}"""
+
+    prompt = ChatPromptTemplate.from_messages(
+        [
+            ("system", system_prompt),
+            ("user", "{input_text}"),
+        ]
+    )
     chain = prompt | llm | StrOutputParser()
 
     # --- Invoke the Chain and Parse the Output ---
-    logger.info("Invoking local LLM chain for analysis...")
+    logger.info("Invoking LLM chain for KVP extraction...")
     try:
         llm_response = chain.invoke({"input_text": text})
         logger.debug(f"Raw LLM response: {llm_response}")
@@ -131,15 +139,13 @@ Example output format:
             llm_response = llm_response.split("```json")[1].split("```")[0]
         
         result = json.loads(llm_response)
-        kvps = result.get("kvps", {})
-        category = result.get("category")
 
-        if not isinstance(kvps, dict):
-            logger.warning("LLM output for 'kvps' was not a dictionary. Defaulting to empty.")
-            kvps = {}
+        if not isinstance(result, dict):
+            logger.warning("LLM output was not a dictionary. Defaulting to empty.")
+            return {}
 
-        logger.info(f"LLM analysis successful. Suggested Category='{category}'.")
-        return kvps, category
+        logger.info(f"LLM KVP extraction successful. Found {len(result)} pairs.")
+        return result
 
     except json.JSONDecodeError as e:
         logger.error(f"Failed to parse JSON response from LLM: {e}", exc_info=True)
@@ -148,3 +154,53 @@ Example output format:
     except Exception as e:
         logger.error(f"An unexpected error occurred during LLM chain invocation: {e}", exc_info=True)
         raise
+
+# --- Text Splitting Functions ---
+
+def split_text_into_chunks(text: str, chunk_size: int = 1000, chunk_overlap: int = 200) -> list[str]:
+    """
+    Splits a long text into smaller, overlapping chunks.
+    """
+    if not text:
+        return []
+    
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=chunk_size,
+        chunk_overlap=chunk_overlap,
+        length_function=len,
+    )
+    
+    chunks = text_splitter.split_text(text)
+    logger.info(f"Split text into {len(chunks)} chunks.")
+    return chunks
+
+def summarize_text_for_embedding(text: str, llm: ChatOllama) -> str:
+    """
+    Uses the LLM to create a detailed summary of the text.
+    The goal is to capture all key concepts for effective embedding.
+    """
+    if not text or not text.strip():
+        logger.warning("Input text is empty. Cannot summarize.")
+        return ""
+
+    system_prompt = """You are a highly skilled summarization AI. Your task is to create a detailed, comprehensive summary of the provided text.
+The summary must be dense and include all key topics, names, dates, figures, and conclusions mentioned in the original document.
+The purpose of this summary is to be used for semantic search, so do not leave out important details.
+Return only the summary text and nothing else."""
+
+    prompt = ChatPromptTemplate.from_messages(
+        [
+            ("system", system_prompt),
+            ("user", "{input_text}"),
+        ]
+    )
+    chain = prompt | llm | StrOutputParser()
+
+    try:
+        logger.info("Invoking LLM to summarize text for embedding...")
+        summary = chain.invoke({"input_text": text})
+        logger.info(f"Successfully generated a summary of length {len(summary)} for embedding.")
+        return summary
+    except Exception as e:
+        logger.error(f"An error occurred during summarization: {e}", exc_info=True)
+        return "" # Return empty string on failure

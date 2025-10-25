@@ -1,0 +1,51 @@
+:host {
+  display: block;
+  padding: 2rem;
+  background-color: #1a1a1a;
+  color: #f0f0f0;
+}
+
+.category-manager-container {
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+
+    h1 {
+      font-size: 2.5rem;
+      font-weight: bold;
+      color: #00bfff; /* Deep sky blue for a modern look */
+      text-shadow: 0 0 10px #00bfff;
+    }
+  }
+}
+
+.btn-add {
+  background-color: #00bfff;
+  color: #fff;
+  border: none;
+  padding: 0.8rem 1.5rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+
+  &:hover {
+    background-color: #009acd;
+    box-shadow: 0 0 10px #00bfff;
+  }
+}
+
+.btn-action {
+  background-color: #00bfff;
+  color: #fff;
+  border: none;
+  padding: 0.5rem 1rem;
+  margin-right: 0.5rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+
+  &:hover {
+    background-color: #009acd;
+    box-shadow: 0 0 10px #00bfff;
+  }
+}

@@ -1,0 +1,5 @@
+This is a test document.
+It contains some text for the purpose of testing the document processing application.
+
+Invoice Number: 12345
+Total Amount: $500

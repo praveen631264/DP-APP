@@ -1,0 +1,32 @@
+<ngx-graph
+  class="playbook-graph"
+  [nodes]="nodes"
+  [edges]="edges"
+  layout="dagre">
+
+  <!-- 
+    FIX: Define the node template INSIDE the ngx-graph component.
+    Use the 'let-node' syntax to get the node data.
+    The template reference variable '#nodeTemplate' tells ngx-graph to use this for nodes.
+  -->
+  <ng-template #nodeTemplate let-node>
+    <svg:g class="node-group">
+      <svg:rect
+        [attr.width]="150"
+        [attr.height]="50"
+        [attr.fill]="node.data.color"
+        rx="5"
+        ry="5"
+      />
+      <!-- Note: You cannot directly render HTML (like <i>) inside an SVG <text> tag.
+           You would need a more complex setup with foreignObject or separate icon rendering.
+           For simplicity, I am leaving the label as text-only for now to ensure it compiles.
+           We can address adding the icon visually in the next step.
+      -->
+      <svg:text class="node-label" [attr.x]="75" [attr.y]="30" text-anchor="middle">
+        {{ node.label }}
+      </svg:text>
+    </svg:g>
+  </ng-template>
+
+</ngx-graph>

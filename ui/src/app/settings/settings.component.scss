@@ -1,0 +1,63 @@
+@use 'theme-variables' as theme;
+
+:host {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background-color: #f4f7fa;
+}
+
+.page-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.page-header {
+  padding: 16px 24px;
+  background-color: #ffffff;
+  border-bottom: 1px solid #e0e0e0;
+  flex-shrink: 0;
+
+  h1 {
+    margin: 0;
+    font-size: 1.5em;
+    font-weight: 400;
+  }
+  p {
+    margin: 4px 0 0;
+    color: theme.$grey-600;
+  }
+}
+
+.content-area {
+  padding: 24px;
+  flex-grow: 1;
+  overflow-y: auto;
+
+  mat-card {
+    margin-bottom: 24px;
+
+    mat-form-field {
+      display: block;
+    }
+
+    .qr-code-container {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 24px;
+      background-color: white;
+      border: 1px solid #eee;
+      border-radius: 8px;
+      margin-bottom: 16px;
+      min-height: 150px;
+    }
+
+    .mfa-form {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+    }
+  }
+}

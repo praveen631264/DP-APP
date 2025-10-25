@@ -1,0 +1,16 @@
+<div class="dialog-container">
+  <h2 mat-dialog-title>{{ data.stage.label }}</h2>
+  <div mat-dialog-content>
+    <h3>Processes</h3>
+    <ul>
+      <li *ngFor="let process of data.details.processes">
+          <button *ngIf="process.status === 'Failed'" mat-icon-button (click)="openAiAgent(process)"><i class="fas fa-robot"></i></button>
+      </li>
+    </ul>
+    <h3>Logs</h3>
+    <pre>{{ logs }}</pre>
+  </div>
+  <div mat-dialog-actions>
+    <button mat-button (click)="onNoClick()">Close</button>
+  </div>
+</div>

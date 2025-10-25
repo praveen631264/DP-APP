@@ -1,0 +1,16 @@
+<div class="workflow-container">
+  <h2>Workflow Status</h2>
+  <ul class="timeline">
+    <li *ngFor="let step of steps" [ngClass]="step.status.toLowerCase()">
+      <div class="timeline-badge"></div>
+      <div class="timeline-panel">
+        <div class="timeline-heading">
+          <h4 class="timeline-title">{{ step.name }}</h4>
+        </div>
+        <div class="timeline-body">
+          <p>{{ step.status }}</p>
+        </div>
+      </div>
+    </li>
+  </ul>
+</div>

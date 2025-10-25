@@ -1,13 +1,18 @@
 import logging
-from celery import Celery
-from flask import current_app, Flask
-from app.utils.doc_utils import extract_text, extract_kvps_and_category
-from app.ai_models import get_llm, get_embeddings
-from app.database import Database
+import threading
+import uuid
+from celery import Celery, group, chain
+from celery.signals import worker_shutdown, task_prerun
+from flask import current_app, Flask, g
+from app.ai_models import get_llm
+from bson import ObjectId
 
 # Initialize Celery
 celery = Celery(__name__)
 logger = logging.getLogger(__name__)
+
+# Thread-local storage to track the active job ID for each worker thread
+active_job_tracker = threading.local()
 
 def make_celery(app: Flask) -> Celery:
     """
@@ -16,75 +21,64 @@ def make_celery(app: Flask) -> Celery:
     """
     celery.conf.update(
         broker_url=app.config["CELERY_BROKER_URL"],
-        result_backend=app.config["CELERY_RESULT_BACKEND"]
+        result_backend=app.config["CELERY_RESULT_BACKEND"],
+        # Pass mongo config to celery so tasks can access it if needed
+        MONGO_URI=app.config["MONGO_URI"],
+        VECTOR_DIMENSIONS=app.config["VECTOR_DIMENSIONS"]
     )
 
     class ContextTask(celery.Task):
         def __call__(self, *args, **kwargs):
             with app.app_context():
-                self.db = current_app.db
+                # Use Flask's 'g' object for a request-safe db connection
+                if not hasattr(g, 'db'):
+                    g.db = current_app.db
+                self.db = g.db
                 return self.run(*args, **kwargs)
 
     celery.Task = ContextTask
     logger.info("Celery instance configured.")
     return celery
 
-@celery.task(bind=True, name='process_document_task', autoretry_for=(Exception,), retry_backoff=True, max_retries=3)
-def process_document_task(self, doc_id: str):
+@task_prerun.connect
+def on_task_prerun(task_id, task, *args, **kwargs):
     """
-    Asynchronous task to process a single document. This task is the core of the document analysis pipeline.
-    It uses automatic retry for robustness.
+    Before a task runs, store its ID in thread-local storage.
+    This allows the shutdown handler to know which job was running.
     """
-    db: Database = self.db
+    # Clear any previous job ID from the thread-local storage
+    active_job_tracker.current_job_id = None
+    active_job_tracker.current_job_type = None
 
-    try:
-        logger.info(f"[TASK_START] Processing document ID: {doc_id}")
-        doc = db.get_document(doc_id)
-        if not doc:
-            logger.error(f"Document with ID {doc_id} not found. Aborting task.")
-            return
+    if task.name == 'fine_tune_model_task':
+        # The job_id for training tasks is passed in the arguments
+        job_id = kwargs.get('kwargs', {}).get('job_id') or str(uuid.uuid4())
+        active_job_tracker.current_job_id = job_id
+        active_job_tracker.current_job_type = 'training'
+    elif task.name == 'batch_process_chunks_task':
+        # For document processing, the job is the document itself.
+        doc_id = kwargs.get('args', [None])[0]
+        active_job_tracker.current_job_id = doc_id
+        active_job_tracker.current_job_type = 'document_processing'
 
-        file_content = db.get_file_content(doc.get('file_id'))
-        if not file_content:
-            db.update_document_status(doc_id, "Error", {}, None, "File content not found in storage.", None)
-            logger.error(f"File content for doc ID {doc_id} not found. Aborting.")
-            return
+@worker_shutdown.connect
+def on_worker_shutdown(sender, **kwargs):
+    """
+    Handles graceful shutdown of a Celery worker.
+    It finds any 'RUNNING' job associated with this worker and marks it as 'INTERRUPTED'.
+    """
+    logger.warning("Celery worker shutting down. Checking for active jobs to mark as interrupted.")
+    if hasattr(active_job_tracker, 'current_job_id'):
+        job_id = active_job_tracker.current_job_id
+        # We need a direct DB connection as the app context is gone during shutdown.
+        from app.database import MongoDatabase
+        from config import Config
+        db = MongoDatabase(Config.MONGO_URI, Config.VECTOR_DIMENSIONS)
 
-        # 1. Extract Text
-        logger.info(f"Step 1/4: Extracting text from '{doc['filename']}'.")
-        text = extract_text(file_content, doc['content_type'])
-        if not text:
-            db.update_document_status(doc_id, "Error", {}, None, "Failed to extract text.", None)
-            logger.warning(f"Could not extract text from '{doc['filename']}'.")
-            return
-
-        # 2. Extract Key-Value Pairs and Category
-        logger.info(f"Step 2/4: Extracting KVPs and category for '{doc['filename']}'.")
-        llm = get_llm()
-        all_categories = db.get_all_categories()
-        kvps, category_name, explanation = extract_kvps_and_category(text, all_categories, llm)
-
-        # 3. Generate Embeddings
-        logger.info(f"Step 3/4: Generating embeddings for '{doc['filename']}'.")
-        embeddings_model = get_embeddings()
-        embedding = embeddings_model.embed_query(text)
-        
-        # 4. Update the document in the database with all the new information
-        logger.info(f"Step 4/4: Saving all extracted data for '{doc['filename']}'.")
-        db.update_document_status(
-            doc_id=doc_id,
-            status="Processed",
-            kvps=kvps,
-            category=category_name,
-            text=text,
-            embedding=embedding
-        )
-
-        logger.info(f"[TASK_SUCCESS] Successfully processed document ID: {doc_id}")
-
-    except Exception as e:
-        logger.error(f"[TASK_FAILURE] An unexpected error occurred while processing document ID {doc_id}: {e}", exc_info=True)
-        db.update_document_status(doc_id, "Error", {}, None, "An unexpected error occurred during processing.", None)
-        raise
-
-    return {"status": "success", "doc_id": doc_id}
+        if getattr(active_job_tracker, 'current_job_type', None) == 'training':
+            db.update_job_status(job_id, 'INTERRUPTED', {"reason": "Worker shutdown."})
+            logger.warning(f"Successfully marked active training job {job_id} as 'INTERRUPTED'.")
+        elif getattr(active_job_tracker, 'current_job_type', None) == 'document_processing':
+            # For documents, we update the document's own status
+            db.documents.update_one({'_id': ObjectId(job_id)}, {'$set': {'status': 'INTERRUPTED', 'status_message': 'Processing was interrupted by worker shutdown.'}})
+            logger.warning(f"Successfully marked active document {job_id} as 'INTERRUPTED'.")

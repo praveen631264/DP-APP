@@ -1,0 +1,30 @@
+<div class="chat-container">
+  <div class="chat-header">
+    <h3>AI Assistant</h3>
+    <mat-icon>smart_toy</mat-icon>
+  </div>
+
+  <div class="chat-messages" #messageContainer>
+    <div *ngFor="let msg of messages" class="message-row" [ngClass]="'sender-' + msg.sender">
+      <div class="chat-bubble">
+        <p class="message-text">{{ msg.text }}</p>
+      </div>
+    </div>
+    <div *ngIf="isAwaitingResponse" class="message-row sender-ai">
+      <div class="chat-bubble typing-indicator">
+        <span></span><span></span><span></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="chat-input-area">
+    <form [formGroup]="chatForm" (ngSubmit)="sendMessage()">
+      <mat-form-field appearance="outline" class="message-input">
+        <input matInput formControlName="message" placeholder="Ask about the document..." autocomplete="off">
+      </mat-form-field>
+      <button mat-flat-button color="primary" type="submit" [disabled]="chatForm.invalid || isAwaitingResponse">
+        <mat-icon>send</mat-icon>
+      </button>
+    </form>
+  </div>
+</div>

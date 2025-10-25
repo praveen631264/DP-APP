@@ -1,0 +1,45 @@
+<div class="login-container">
+  <mat-card class="login-card">
+    <mat-card-header>
+      <mat-card-title>
+        <h1>Welcome Back</h1>
+      </mat-card-title>
+      <mat-card-subtitle>Sign in to access the Document Intelligence Platform</mat-card-subtitle>
+    </mat-card-header>
+    <mat-card-content>
+      <form [formGroup]="loginForm" (ngSubmit)="onSubmit()" *ngIf="!mfaRequired">
+        <mat-form-field appearance="outline">
+          <mat-label>Email</mat-label>
+          <input matInput formControlName="email" type="email" required>
+          <mat-error *ngIf="loginForm.get('email')?.hasError('required')">Email is required</mat-error>
+          <mat-error *ngIf="loginForm.get('email')?.hasError('email')">Please enter a valid email</mat-error>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Password</mat-label>
+          <input matInput formControlName="password" type="password" required>
+          <mat-error *ngIf="loginForm.get('password')?.hasError('required')">Password is required</mat-error>
+        </mat-form-field>
+
+        <button mat-flat-button color="primary" type="submit" [disabled]="loginForm.invalid || isLoading" class="login-button">
+          <span *ngIf="!isLoading">Sign In</span>
+          <mat-progress-spinner *ngIf="isLoading" mode="indeterminate" diameter="24"></mat-progress-spinner>
+        </button>
+      </form>
+
+      <form [formGroup]="mfaForm" (ngSubmit)="onMfaSubmit()" *ngIf="mfaRequired">
+        <p>Enter the code from your authenticator app.</p>
+        <mat-form-field appearance="outline">
+          <mat-label>6-Digit Code</mat-label>
+          <input matInput formControlName="totp_code" type="text" required>
+        </mat-form-field>
+
+        <button mat-flat-button color="primary" type="submit" [disabled]="mfaForm.invalid || isLoading" class="login-button">
+          <span *ngIf="!isLoading">Verify</span>
+          <mat-progress-spinner *ngIf="isLoading" mode="indeterminate" diameter="24"></mat-progress-spinner>
+        </button>
+      </form>
+
+    </mat-card-content>
+  </mat-card>
+</div>

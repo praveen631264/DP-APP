@@ -3,14 +3,22 @@ python-dotenv
 werkzeug
 flask-cors
 celery
-langchain
+langchain==0.1.20
 sentence-transformers
+torch==2.2.0 # Pinned to a specific version to ensure compatibility
 pymongo
 PyPDF2
 python-docx
 openpyxl
-kafka-python==1.4.7
-gridfs
 gunicorn
-langchain-community
+langchain-community==0.0.38
 ollama
+psutil
+python-json-logger
+fastembed
+requests
+dpath
+
+# Security and User Management
+Flask-Security-Too[mfa,passwordless]
+mongoengine

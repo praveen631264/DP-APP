@@ -1,0 +1,28 @@
+<div class="playbook-list-container">
+  <div class="header">
+    <h1>Playbooks</h1>
+    <button (click)="createNewPlaybook()" class="create-btn">Create New Playbook</button>
+  </div>
+
+  <table class="playbook-table">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Category</th>
+        <th>Number of Steps</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let playbook of playbooks">
+        <td>{{ playbook.name }}</td>
+        <td>{{ playbook.category_name }}</td>
+        <td>{{ playbook.steps.length }}</td>
+        <td class="actions">
+          <button (click)="editPlaybook(playbook._id!)" class="edit-btn">Edit</button>
+          <button (click)="deletePlaybook(playbook._id!)" class="delete-btn">Delete</button>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>

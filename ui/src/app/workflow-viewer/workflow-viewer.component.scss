@@ -1,0 +1,77 @@
+.workflow-container {
+  padding: 2rem;
+  background-color: #2a2a2a;
+  border-radius: 10px;
+  color: #f0f0f0;
+
+  h2 {
+    font-size: 1.8rem;
+    font-weight: bold;
+    color: #00bfff;
+    text-shadow: 0 0 10px #00bfff;
+    margin-bottom: 1.5rem;
+  }
+
+  .timeline {
+    list-style: none;
+    padding: 0;
+    position: relative;
+
+    &:before {
+      top: 0;
+      bottom: 0;
+      position: absolute;
+      content: " ";
+      width: 3px;
+      background-color: #4a4a4a;
+      left: 50%;
+      margin-left: -1.5px;
+    }
+
+    li {
+      margin-bottom: 20px;
+      position: relative;
+
+      .timeline-badge {
+        width: 20px;
+        height: 20px;
+        line-height: 50px;
+        font-size: 1.4em;
+        text-align: center;
+        position: absolute;
+        top: 16px;
+        left: 50%;
+        margin-left: -10px;
+        background-color: #999999;
+        z-index: 100;
+        border-radius: 50%;
+      }
+
+      &.completed .timeline-badge {
+        background-color: #28a745;
+      }
+
+      &.processing .timeline-badge {
+        background-color: #ffc107;
+      }
+
+      &.failed .timeline-badge {
+        background-color: #dc3545;
+      }
+
+      .timeline-panel {
+        width: 45%;
+        float: left;
+        border: 1px solid #4a4a4a;
+        border-radius: 5px;
+        padding: 20px;
+        position: relative;
+        background-color: #3a3a3a;
+      }
+
+      &:nth-child(odd) .timeline-panel {
+        float: right;
+      }
+    }
+  }
+}

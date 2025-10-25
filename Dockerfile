@@ -5,8 +5,8 @@ FROM python:3.9-slim-buster
 WORKDIR /app
 
 # Set environment variables
-ENV PYTHONDONTWRITEBYTECODE 1
-ENV PYTHONUNBUFFERED 1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 
 # Create a non-root user
 RUN useradd --create-home appuser
@@ -16,7 +16,9 @@ USER appuser
 COPY --chown=appuser:appuser requirements.txt .
 
 # Install any needed packages specified in requirements.txt
-RUN pip install --no-cache-dir --user -r requirements.txt
+# The --mount instruction tells Docker BuildKit to create a persistent cache directory.
+# This will dramatically speed up subsequent builds by caching large packages like torch.
+RUN --mount=type=cache,target=/home/appuser/.cache/pip pip install --user --timeout 3600 -r requirements.txt
 
 # Copy the rest of the application code into the container
 COPY --chown=appuser:appuser . .

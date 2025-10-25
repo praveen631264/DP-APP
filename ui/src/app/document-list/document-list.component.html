@@ -1,0 +1,17 @@
+<div class="document-list-container">
+  <div class="header">
+    <h1>Documents</h1>
+    <app-document-upload></app-document-upload>
+  </div>
+  <ag-grid-angular
+    style="width: 100%; height: 500px;"
+    class="ag-theme-alpine-dark"
+    [columnDefs]="columnDefs"
+    [rowModelType]="'serverSide'"
+    [pagination]="true"
+    [paginationPageSize]="100"
+    [cacheBlockSize]="100"
+    (gridReady)="onGridReady($event)"
+  >
+  </ag-grid-angular>
+</div>
