@@ -1,80 +1,58 @@
 # AI-Powered Document Management API
 
-This project is a sophisticated, AI-powered Flask API for managing and understanding documents. It provides a complete, end-to-end solution for uploading documents, processing them asynchronously, extracting key information, and conversing with them through a chat interface.
+This project is a sophisticated, AI-powered Flask API for managing and understanding documents. It is designed with two distinct deployment targets: local development with Docker Compose and a fully-managed, scalable production environment on Google Cloud.
 
-Built on a modern, scalable architecture, it leverages MongoDB Atlas for data persistence and Redis for message queuing.
+***
 
-## Key Features
+## 1. Local Development (with Docker Compose)
 
-- **Document Upload**: Securely upload documents (PDF, DOCX, TXT, etc.) via a REST API.
-- **Asynchronous AI Processing**: Offloads heavy AI tasks to a Celery worker using Redis, ensuring the API remains responsive and fault-tolerant.
-- **MongoDB Atlas**: The single source of truth for all data, including file storage (GridFS), metadata, and vector embeddings.
-- **Conversational AI Chat**: A powerful chat endpoint uses MongoDB Atlas Vector Search to find relevant documents and a Large Language Model (LLM) to answer questions.
-- **Failure Recovery**: An endpoint to re-trigger the AI processing for documents that may have failed.
-- **Human-in-the-Loop**: Endpoints allow users to validate or correct the AI's extracted data.
-
-## Getting Started
+Use this method to run the entire application stack on your local machine using Docker Desktop. This is ideal for development, testing, and running the application offline.
 
 ### Prerequisites
 
-1.  **MongoDB Atlas Account**: A MongoDB Atlas cluster with Vector Search enabled is required.
-2.  **Redis**: A running Redis server. You can run this locally using Docker or use a managed cloud service.
-3.  **Project Dependencies**: The required Python packages are listed in `requirements.txt`.
+- **Docker and Docker Compose:** Ensure you have Docker Desktop installed and running.
 
-### 1. Configure Environment Variables
+### How to Run
 
-1.  Copy the example file: `cp .env.example .env`
-2.  Edit `.env` and set the `MONGO_URI` and `CELERY_BROKER_URL` to your service addresses.
-
-### 2. Activate the Virtual Environment
+To build the Docker images and start all services (Flask, Celery, Nginx, MongoDB, Redis, and Ollama), run the following command from the project root directory:
 
 ```bash
-source .venv/bin/activate
+./deploy-local.sh
 ```
 
-### 3. Run the Application
+This script simply executes `docker-compose up --build`.
 
-You need to run the services in separate terminals:
+- The Nginx reverse proxy will be accessible at `http://localhost:80`.
+- Your application data for MongoDB and Ollama will be persisted in the `./data` directory.
 
--   **Terminal 1: Flask Server**: `./devserver.sh`
--   **Terminal 2: Celery Worker**: `celery -A main.celery worker --loglevel=info`
--   **Terminal 3 (if running locally): Redis Server**: Ensure your Redis server is running.
+To stop the services, press `Ctrl+C` in the terminal, then run `docker-compose down`.
 
-## API Endpoints
+***
 
-Here is a summary of the available API endpoints.
+## 2. Cloud Deployment (with Terraform & Google Cloud)
 
-### Documents
+Use this method to deploy the application to a production-ready, scalable environment on Google Cloud. This workflow pushes your code to the cloud, where it is built and deployed to managed services.
 
--   `POST /documents`
-    -   **Description**: Uploads a new document. The file should be sent as multipart/form-data in the `file` field.
-    -   **On Success**: Returns `202 Accepted` with a JSON object of the created document. The document is queued for AI processing.
+### Prerequisites
 
--   `GET /documents`
-    -   **Description**: Retrieves a list of all documents and their current status.
+- A Google Cloud Account, Terraform, and the `gcloud` SDK installed.
+- A MongoDB Atlas cluster.
 
--   `GET /documents/<doc_id>`
-    -   **Description**: Retrieves the full details for a single document, including its status, text, and extracted KVPs.
+### How to Deploy
 
--   `GET /documents/search`
-    -   **Description**: Searches for documents by filename based on a query string.
-    -   **Query Parameter**: `q=<search_term>`
-    -   **On Success**: Returns a list of matching documents.
+All configuration and instructions for the cloud deployment are contained within the `gcp_deployment` folder.
 
--   `POST /documents/<doc_id>/reprocess`
-    -   **Description**: **(Failure Recovery)** Re-triggers the asynchronous AI processing for a document. This is useful if a document has a `Processing Failed` status.
-    -   **On Success**: Returns `202 Accepted` and re-queues the document for processing.
+To initiate the deployment, run the following command from the project root directory:
 
--   `PUT /documents/<doc_id>/kvp`
-    -   **Description**: **(Human-in-the-Loop)** Updates the Key-Value Pairs for a document after manual review. The request body should be a JSON object of the new KVPs.
-    -   **On Success**: The document's status is updated to `Validated`.
+```bash
+./deploy-cloud.sh
+```
 
--   `PUT /documents/<doc_id>/recategorize`
-    -   **Description**: **(Human-in-the-Loop)** Manually changes the category of a document. The request body should be a JSON object with a `new_category` key and an optional `explanation` key.
-    -   **On Success**: The document's status is updated to `Re-categorized`.
+This script will guide you through the process:
+1.  It will change into the `gcp_deployment` directory.
+2.  It will run `terraform init` to prepare your configuration.
+3.  It will run `terraform apply`, which will prompt you to confirm the deployment after showing you the plan.
 
-### Chat
+**Note:** Before running the script for the first time, you must follow the setup instructions in `gcp_deployment/README.md` to configure your project ID and secrets.
 
--   `POST /chat`
-    -   **Description**: Asks a question about the processed documents. The request body should be a JSON object with a `query` key.
-    -   **On Success**: Returns an answer generated by the LLM, along with the source documents used to create the answer.
+Once complete, Terraform will output the public URL of your application.

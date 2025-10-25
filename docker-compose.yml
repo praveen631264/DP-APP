@@ -1,99 +1,74 @@
+version: '3.8'
+
 services:
-  # Redis Service (for Celery)
-  redis:
-    image: redis:7.0-alpine
-    container_name: redis_broker
+  nginx:
+    image: nginx:latest
     ports:
-      - "6379:6379"
+      - "80:80"
+      - "443:443"
     volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - flask-app
+    networks:
+      - app-network
 
-  # Ollama AI Model Server
+  mongo:
+    image: mongo:latest
+    # This new section exposes the MongoDB port to your local machine
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_PASSWORD}
+    volumes:
+      - ./data/mongo:/data/db
+    networks:
+      - app-network
+
+  redis:
+    image: redis:latest
+    networks:
+      - app-network
+
   ollama:
-    image: ollama/ollama
-    container_name: ollama_server
-    ports: # Exposes port 11434 inside the container to port 11435 on the host machine.
-      - "11435:11434"
+    image: ollama/ollama:latest
     volumes:
-      - ollama_data:/root/.ollama
-    # Uncomment the following lines if you have an NVIDIA GPU
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: 1
-    #           capabilities: [gpu]
+      - ./data/ollama:/root/.ollama
+    networks:
+      - app-network
 
-  # Base service that builds the common image for api and worker
-  base-app:
+  flask-app:
     build:
       context: .
       dockerfile: Dockerfile
-    image: intellidocs-base-app:latest
-
-  # Main Flask Application (API)
-  api:
-    image: intellidocs-base-app:latest
-    container_name: flask_api
-    ports:
-      - "8000:8000"
     depends_on:
-      redis:
-        condition: service_healthy
-      ollama:
-        condition: service_started
-    env_file:
-      - .env # Pass environment variables from a .env file
-    extra_hosts:
-      - "host.docker.internal:host-gateway" # Allows container to connect to host's localhost
+      - mongo
+      - redis
+      - ollama
     environment:
-      - FLASK_ENV=production
-      # Point to the Docker network hostnames for dependencies
-      - MONGO_URI=mongodb://host.docker.internal:27017/intellidocs
+      - MONGO_URI=mongodb://admin:${MONGO_PASSWORD}@mongo:27017/intellidocs?authSource=admin
       - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - OLLAMA_BASE_URL=http://ollama:11434
-    # The command to run the production server (Gunicorn)
-    command: gunicorn --workers 3 --bind 0.0.0.0:8000 "main:app"
+      - FLASK_SECRET_KEY=${FLASK_SECRET_KEY}
+    networks:
+      - app-network
 
-  # Celery Worker Service
-  worker:
-    image: intellidocs-base-app:latest
-    container_name: celery_worker
-    depends_on:
-      redis:
-        condition: service_healthy
-      ollama:
-        condition: service_started
-    env_file:
-      - .env
-    extra_hosts:
-      - "host.docker.internal:host-gateway" # Allows container to connect to host's localhost
-    environment:
-      - MONGO_URI=mongodb://host.docker.internal:27017/intellidocs
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
-      - OLLAMA_BASE_URL=http://ollama:11434
-    # The command to start the Celery worker
-    command: celery -A main.celery worker --loglevel=info
-
-  # Angular Frontend Service
-  ui:
+  celery-worker:
     build:
-      context: ./ui
+      context: .
       dockerfile: Dockerfile
-    container_name: angular_ui
-    ports:
-      - "4200:80"
+    command: celery -A main.celery worker --loglevel=info
     depends_on:
-      - api
+      - redis
+      - flask-app
+    environment:
+      - MONGO_URI=mongodb://admin:${MONGO_PASSWORD}@mongo:27017/intellidocs?authSource=admin
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - OLLAMA_BASE_URL=http://ollama:11434
+    networks:
+      - app-network
 
-volumes:
-  redis_data:
-  ollama_data:
+networks:
+  app-network:
+    driver: bridge

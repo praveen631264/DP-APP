@@ -1,34 +1,25 @@
 # Use an official Python runtime as a parent image
-FROM python:3.9-slim-buster
+FROM python:3.9-slim
 
 # Set the working directory in the container
 WORKDIR /app
 
-# Set environment variables
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
-
-# Create a non-root user
-RUN useradd --create-home appuser
-USER appuser
-
-# Copy the requirements file into the container
-COPY --chown=appuser:appuser requirements.txt .
+# Copy the requirements file into the container at /app
+COPY requirements.txt .
 
 # Install any needed packages specified in requirements.txt
-# The --mount instruction tells Docker BuildKit to create a persistent cache directory.
-# This will dramatically speed up subsequent builds by caching large packages like torch.
-RUN --mount=type=cache,target=/home/appuser/.cache/pip pip install --user --timeout 3600 -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the application code into the container
-COPY --chown=appuser:appuser . .
+# Copy the rest of the application code into the container at /app
+COPY . .
 
-# Ensure the PATH includes the user's local bin
-ENV PATH="/home/appuser/.local/bin:${PATH}"
+# Make port 8080 available to the world outside this container
+EXPOSE 8080
 
-# Expose the port the app runs on
-EXPOSE 8000
+# Define environment variable
+ENV FLASK_APP=main:create_app
+ENV FLASK_RUN_HOST=0.0.0.0
+ENV FLASK_RUN_PORT=8080
 
-# Default command to run the app (can be overridden in docker-compose)
-# This is useful for running the container directly
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "main:app"]
+# Run the command to start the Gunicorn server
+CMD ["gunicorn", "--bind", "0.0.0.0:8080", "main:create_app()"]

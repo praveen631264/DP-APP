@@ -32,15 +32,13 @@ export class AuthService {
   currentUserRoles$ = this._currentUserRoles$.asObservable();
 
   constructor(
-    private http: HttpClient, 
+    private http: HttpClient,
     private router: Router,
     private profileService: ProfileService,
     private themeService: ThemeService
-  ) {
-    this.checkAuthenticationStatus().subscribe();
-  }
+  ) {}
 
-  checkAuthenticationStatus(): Observable<boolean> {
+  checkAuthStatus(): Observable<boolean> {
     return this.http.get<UserStatus>(`${this.apiUrl}/status`).pipe(
       map(user => {
         this.updateUserState(user.id, user.email, user.roles);
@@ -58,7 +56,7 @@ export class AuthService {
     return this.http.post<AuthResponse>(`${this.apiUrl}/login`, credentials).pipe(
       tap(response => {
         if (!response.mfa_required) {
-          this.checkAuthenticationStatus().subscribe();
+          this.checkAuthStatus().subscribe();
         }
       })
     );
@@ -67,7 +65,7 @@ export class AuthService {
   loginWithMfa(email: string, totp_code: string): Observable<AuthResponse> {
     return this.http.post<AuthResponse>(`${this.apiUrl}/login/mfa`, { email, totp_code }).pipe(
       tap(() => {
-        this.checkAuthenticationStatus().subscribe();
+        this.checkAuthStatus().subscribe();
       })
     );
   }
@@ -80,7 +78,6 @@ export class AuthService {
   }
 
   private initializeUserSession(): void {
-    // On initial load, also fetch profile to set the theme
     this.profileService.getProfile().subscribe((profile: UserProfile) => {
       if (profile?.preferences?.theme) {
         this.themeService.setTheme(profile.preferences['theme'] || 'default-light');
