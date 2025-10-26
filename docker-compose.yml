@@ -15,12 +15,12 @@ services:
 
   mongo:
     image: mongo:latest
-    # This new section exposes the MongoDB port to your local machine
     ports:
       - "27017:27017"
     environment:
-      - MONGO_INITDB_ROOT_USERNAME=admin
-      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_PASSWORD}
+      MONGO_INITDB_ROOT_USERNAME: admin
+      # WARNING: Hardcoded password for local demo purposes ONLY.
+      MONGO_INITDB_ROOT_PASSWORD: mysecretpassword
     volumes:
       - ./data/mongo:/data/db
     networks:
@@ -47,10 +47,11 @@ services:
       - redis
       - ollama
     environment:
-      - MONGO_URI=mongodb://admin:${MONGO_PASSWORD}@mongo:27017/intellidocs?authSource=admin
+      # WARNING: Hardcoded password for local demo purposes ONLY.
+      - MONGO_URI=mongodb://admin:mysecretpassword@mongo:27017/intellidocs?authSource=admin
       - CELERY_BROKER_URL=redis://redis:6379/0
       - OLLAMA_BASE_URL=http://ollama:11434
-      - FLASK_SECRET_KEY=${FLASK_SECRET_KEY}
+      - FLASK_SECRET_KEY=a-very-long-and-static-secret-key-for-the-demo
     networks:
       - app-network
 
@@ -63,7 +64,8 @@ services:
       - redis
       - flask-app
     environment:
-      - MONGO_URI=mongodb://admin:${MONGO_PASSWORD}@mongo:27017/intellidocs?authSource=admin
+      # WARNING: Hardcoded password for local demo purposes ONLY.
+      - MONGO_URI=mongodb://admin:mysecretpassword@mongo:27017/intellidocs?authSource=admin
       - CELERY_BROKER_URL=redis://redis:6379/0
       - OLLAMA_BASE_URL=http://ollama:11434
     networks:
