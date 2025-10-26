@@ -1,0 +1,20 @@
+# Git files
+.git
+.gitignore
+
+# Local data and state
+.venv
+.vscode
+data/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Docker files
+Dockerfile
+docker-compose.yml
+
+# Scripts
+*.sh
