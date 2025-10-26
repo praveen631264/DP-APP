@@ -32,10 +32,10 @@ def create_app():
     app.config["SECURITY_CSRF_IGNORE_UNAUTH_ENDPOINTS"] = True
 
     # Initialize database
-    init_db(app)
+    db = init_db(app)
 
     # Initialize Flask-Security-Too
-    user_datastore = MongoEngineUserDatastore(User, Role)
+    user_datastore = MongoEngineUserDatastore(db, User, Role)
     security = Security(app, user_datastore)
 
     # Logging setup
