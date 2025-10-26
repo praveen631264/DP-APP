@@ -28,5 +28,5 @@ echo "-----------------------------------------------------------------"
 mkdir -p data/mongo
 mkdir -p data/ollama
 
-# Start the services. Docker Compose will automatically read the .env file.
-docker-compose up --build
+# Start the services, explicitly telling Docker Compose to use our .env file.
+docker-compose --env-file ./.env up --build
