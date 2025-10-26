@@ -4,6 +4,8 @@
 # Local Development Startup Script
 # =============================================================================
 # This script starts all application services using docker-compose.
+# It uses the --build flag to ensure the latest code is always used.
+#
 # It will start the following services in the background:
 # - MongoDB (Database)
 # - Redis (Celery Broker)
@@ -15,9 +17,9 @@
 # docker-compose logs -f
 # =============================================================================
 
-echo "Starting all application services for Local Development..."
+echo "Starting and rebuilding all application services for Local Development..."
 
-docker-compose up -d
+docker-compose up -d --build
 
 if [ $? -ne 0 ]; then
     echo "Error: docker-compose failed to start." >&2
@@ -26,6 +28,5 @@ if [ $? -ne 0 ]; then
 fi
 
 echo "--> All services started successfully."
-echo "--> To force a rebuild of the images, run: ./rebuild_local.sh"
 echo "The Flask API will be available at http://localhost:8000"
 echo "You can stop the services at any time by running: ./shutdown_local.sh"

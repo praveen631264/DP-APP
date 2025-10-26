@@ -6,13 +6,14 @@ logger = logging.getLogger(__name__)
 
 def init_db(app):
     """
-    Initializes the MongoEngine connection, making it the single source of truth.
+    Initializes the MongoEngine connection and returns the client object.
     """
     mongo_uri = app.config['MONGO_URI']
     try:
         client = connect(host=mongo_uri)
         db_name = client.get_default_database().name
         logger.info(f"Successfully connected to MongoDB via MongoEngine. Database: {db_name}")
+        return client # <-- CRITICAL FIX ADDED HERE
     except Exception as e:
         logger.critical(f"Could not connect to MongoDB via MongoEngine. Error: {e}", exc_info=True)
         raise
