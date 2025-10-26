@@ -39,7 +39,6 @@ services:
       - app-network
 
   flask-app:
-    image: dp-app:latest  # <-- Give the image a name
     build:
       context: .
       dockerfile: Dockerfile
@@ -57,7 +56,9 @@ services:
       - app-network
 
   celery-worker:
-    image: dp-app:latest  # <-- Reuse the same image
+    build:          # <-- THIS IS THE CRITICAL FIX
+      context: .    # <-- Both services now have their own build section
+      dockerfile: Dockerfile
     command: celery -A main.celery worker --loglevel=info
     depends_on:
       - redis
