@@ -6,8 +6,8 @@ WORKDIR /app
 # Copy package configuration
 COPY package.json ./
 
-# Install dependencies, ignoring peer dependency conflicts
-RUN npm install --legacy-peer-deps --network-timeout=600000
+# Install dependencies
+RUN npm install --network-timeout=600000
 
 # Copy the rest of the application source code
 COPY . .
