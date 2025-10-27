@@ -1,24 +1,27 @@
-flask
-python-dotenv
-werkzeug
-flask-cors
+fastapi
 celery
-langchain==0.1.20
-sentence-transformers
-torch==2.2.0 # Pinned to a specific version to ensure compatibility
-pymongo
-PyPDF2
-python-docx
-openpyxl
 gunicorn
-langchain-community==0.0.38
-ollama
-psutil
-python-json-logger
-fastembed
+werkzeug
 requests
-dpath
 
-# Security and User Management
-Flask-Security-Too[mfa,passwordless]
+# Langchain
+langchain==0.2.19
+langchain-community==0.2.10
+langchain-core==0.2.50
+langchain-text-splitters==0.2.5
+
+# Vector Database
+fastembed==0.2.7
+
+# LLM
+ollama==0.2.1
+
+# Database
 mongoengine
+
+# Security and Authentication
+flask-security-too
+email-validator
+
+# Add redis<4.0 for celery compatibility
+redis<4.0
