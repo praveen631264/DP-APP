@@ -3,11 +3,11 @@ FROM node:20-alpine AS build
 
 WORKDIR /app
 
-# Copy package configuration and install dependencies
+# Copy package configuration
 COPY package.json ./
 
-# Use 'npm install' to create a fresh install from package.json
-RUN npm install --network-timeout=600000
+# Install dependencies, ignoring peer dependency conflicts
+RUN npm install --legacy-peer-deps --network-timeout=600000
 
 # Copy the rest of the application source code
 COPY . .
