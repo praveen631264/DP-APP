@@ -5,7 +5,7 @@ from app.models import User, Role
 from getpass import getpass
 import uuid
 
-app, _ = create_app()
+app = create_app()
 
 @click.group()
 def cli():
