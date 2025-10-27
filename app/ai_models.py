@@ -5,9 +5,11 @@ from langchain.embeddings import CacheBackedEmbeddings
 from langchain.storage import InMemoryStore
 from fastembed.embedding import DefaultEmbedding
 from flask import current_app
+from sentence_transformers import CrossEncoder
 
 llm_instance = None
 embeddings_instance = None
+cross_encoder_instance = None
 
 # --- Caching Setup ---
 # In a production environment, you would want to use a more persistent cache,
