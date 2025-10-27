@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # The UI service that builds the Angular app and serves it with Nginx
   ui:
@@ -11,6 +9,8 @@ services:
       - "80:80" # Expose the UI on port 80
     networks:
       - app-network
+    depends_on:
+      - api # Wait for the API to be ready before starting
 
   # The Flask API service (renamed to 'api' to match the nginx config)
   api:
