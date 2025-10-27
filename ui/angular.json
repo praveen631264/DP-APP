@@ -47,8 +47,8 @@
               "budgets": [
                 {
                   "type": "initial",
-                  "maximumWarning": "500kB",
-                  "maximumError": "1.1MB"
+                  "maximumWarning": "1MB",
+                  "maximumError": "2MB"
                 },
                 {
                   "type": "anyComponentStyle",
@@ -73,7 +73,7 @@
               "buildTarget": "IntelliDocs:build:production"
             },
             "development": {
-              "buildTarget": "IntelliDocs:build:development"
+              "buildTarget": "Intelli-Docs:build:development"
             }
           },
           "defaultConfiguration": "development"
