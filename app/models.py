@@ -1,11 +1,12 @@
 from mongoengine import Document, StringField, BooleanField, ListField, ReferenceField, DateTimeField, DictField, IntField, ObjectIdField, EmbeddedDocument, EmbeddedDocumentField
 import datetime
+from flask_security import UserMixin, RoleMixin
 
-class Role(Document):
+class Role(Document, RoleMixin):
     name = StringField(max_length=80, unique=True)
     description = StringField(max_length=255)
 
-class User(Document):
+class User(Document, UserMixin):
     email = StringField(max_length=255, unique=True)
     password = StringField(max_length=255)
     active = BooleanField(default=True)
