@@ -30,6 +30,8 @@ services:
       - OLLAMA_HOST=http://ollama:11434
     networks:
       - app-network
+    volumes:
+      - pip-cache:/root/.cache/pip
 
   # The Celery worker for background tasks
   celery-worker:
@@ -48,6 +50,8 @@ services:
       - OLLAMA_HOST=http://ollama:11434
     networks:
       - app-network
+    volumes:
+      - pip-cache:/root/.cache/pip
 
   # Other services remain the same
   mongo:
@@ -88,3 +92,4 @@ networks:
 volumes:
   mongo-data:
   ollama-data:
+  pip-cache: # Define the new volume
