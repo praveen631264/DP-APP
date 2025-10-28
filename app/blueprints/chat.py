@@ -12,7 +12,7 @@ from app.utils.doc_utils import extract_text
 from bson import ObjectId
 from app.celery_worker import global_chat_agent_task
 
-chat_bp = Blueprint('chat_bp', __name__)
+bp = Blueprint('chat_bp', __name__)
 logger = logging.getLogger(__name__)
 
 # --- AGENT TOOLS ---
@@ -27,9 +27,6 @@ def search_documents_by_category_and_query(query: str, category: str = None) -> 
     """
     logger.info(f"AGENT TOOL: Running search_documents_by_category_and_query with query='{query}' and category='{category}'")
     
-    # We need access to the vector store, which is on the current_app context.
-    # This is a common challenge when using agents in Flask.
-    # A simple solution is to re-get the vector store inside the tool.
     embeddings = get_embeddings()
     vector_store = get_vector_store(current_app.db, embeddings)
 
@@ -43,7 +40,6 @@ def search_documents_by_category_and_query(query: str, category: str = None) -> 
     if not results:
         return "No relevant documents found."
 
-    # Format the results for the LLM to synthesize
     formatted_results = "\n\n---\n\n".join([
         f"Source (ID: {doc.metadata.get('doc_id', 'N/A')}, Filename: {doc.metadata.get('filename', 'N/A')}, Category: {doc.metadata.get('category', 'N/A')})\nContent: {doc.page_content}"
         for doc in results
@@ -52,8 +48,6 @@ def search_documents_by_category_and_query(query: str, category: str = None) -> 
 
 # --- AGENT SETUP ---
 
-# The prompt is the agent's "brain" and instructions.
-# It tells the GLOBAL agent about its purpose, the tools it has, and how to reason.
 AGENT_PROMPT = ChatPromptTemplate.from_messages(
     [
         ("system", """You are a helpful and powerful assistant that has access to a document retrieval system.
@@ -64,7 +58,7 @@ Your main job is to answer a user's question by finding the most relevant inform
 2.  **Select the Right Tool**: For each sub-question, decide which tool is best. Use the `search_documents_by_category_and_query` tool. If you can infer a category from the user's question (e.g., "invoices", "contracts"), use the `category` parameter for a more focused search. Otherwise, search across all categories.
 3.  **Synthesize the Answer**: Once you have the information from your tools, synthesize it into a single, clear, and comprehensive answer for the user.
 4.  **Cite Your Sources**: If you use information from a document, you MUST cite it using a markdown link. Use the `doc_id` from the search result to create the link in the format `Filename`. For example: `invoice_123.pdf`.
-5.  **Be Honest**: If you cannot find an answer in the documents, say so. Do not make up information.""",), # This is where the agent's thought process is stored.
+5.  **Be Honest**: If you cannot find an answer in the documents, say so. Do not make up information.""",), 
         ("human", "{input}"),
         ("placeholder", "{agent_scratchpad}"), 
     ]
@@ -78,23 +72,19 @@ def get_global_agent_executor(llm: BaseLanguageModel) -> AgentExecutor:
     agent = create_tool_calling_agent(llm, tools, AGENT_PROMPT)
     return AgentExecutor(agent=agent, tools=tools, verbose=True)
 
-@chat_bp.route('/chat/global', methods=['POST'])
+@bp.route('/global', methods=['POST'])
 @auth_required('token')
 def trigger_global_chat_agent():
     """
     Handles global chat queries by asynchronously dispatching the agent task.
-    This endpoint returns immediately with a 202 Accepted status.
-    The actual response will be streamed back to the client via Socket.IO.
     """
     data = request.get_json()
     query = data.get('message')
-    session_id = data.get('sid') # The client must send its Socket.IO session ID
+    session_id = data.get('sid')
 
     if not query or not session_id:
-        logger.warning("Chat request received with no query.")
         return jsonify({"error": "Fields 'message' and 'sid' are required"}), 400
 
-    # Dispatch the background task
     global_chat_agent_task.delay(query=query, session_id=session_id)
 
     logger.info(f"Dispatched global chat task for session {session_id}")
@@ -109,11 +99,11 @@ Your goal is to help the user understand, summarize, and find specific informati
 
 You have access to the document's text and its currently extracted Key-Value Pairs (KVPs).
 
-**Your Capabilities:**
-1.  **Answer Questions**: Answer questions based *only* on the provided document text.
-2.  **Find Information**: If a user asks for a piece of information (e.g., "what is the invoice number?"), check the KVPs first. If it's there, provide it. If not, scan the text to find it.
-3.  **Summarize**: Provide summaries of the document if requested.
-4.  **Be Honest**: If the information is not in the document text or the KVPs, state that you cannot find it. Do not make up information.
+**Capabilities:**
+1.  **Answer Questions**: Based *only* on the provided document text.
+2.  **Find Information**: Check KVPs first, then scan the text.
+3.  **Summarize**: Provide summaries if requested.
+4.  **Be Honest**: If not in the document, say so.
 
 **Context:**
 ---
@@ -123,17 +113,16 @@ You have access to the document's text and its currently extracted Key-Value Pai
 **Document Text:**
 {document_text}
 ---
-"""),
+""",),
         ("human", "{input}"),
     ]
 )
 
-@chat_bp.route('/chat/document', methods=['POST'])
+@bp.route('/document', methods=['POST'])
 @auth_required('token')
 def chat_with_document():
     """
     Handles chat messages related to a single, specific document.
-    This agent is sandboxed and does not have external tools.
     """
     data = request.get_json()
     doc_id = data.get('document_id')
@@ -152,7 +141,6 @@ def chat_with_document():
         return jsonify({"error": "Document not found"}), 404
 
     try:
-        # Extract text from the document stored in GridFS
         file_data = db.get_file(document['file_id'])
         if not file_data:
             return jsonify({"error": "Document file content not found."}), 404
@@ -164,7 +152,7 @@ def chat_with_document():
         chain = DOC_CHAT_PROMPT | llm
         
         logger.info(f"Invoking document-specific chat for doc {doc_id}")
-        result = chain.invoke({"input": message, "document_text": document_text[:8000], "kvps": kvps}) # Truncate for context window
+        result = chain.invoke({"input": message, "document_text": document_text[:8000], "kvps": kvps})
 
         answer = result.content if hasattr(result, 'content') else str(result)
 
@@ -172,4 +160,4 @@ def chat_with_document():
 
     except Exception as e:
         logger.error(f"Error in document-specific chat for doc {doc_id}: {e}", exc_info=True)
-        return jsonify({"error": "An internal error occurred in the chat service"}), 500
+        return jsonify({"error": "An internal error occurred"}), 500
