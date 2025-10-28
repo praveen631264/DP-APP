@@ -1,3 +1,4 @@
+
 import os
 import logging
 from flask import Flask, jsonify
@@ -5,6 +6,19 @@ from flask_security import Security, MongoEngineUserDatastore, utils
 from app.models import User, Role
 from app.database import init_db
 import click
+
+# Import blueprints
+from app.blueprints.chat import bp as chat_bp
+from app.blueprints.documents import bp as documents_bp
+from app.blueprints.playbooks import bp as playbooks_bp
+from app.blueprints.categories import bp as categories_bp
+from app.blueprints.admin import bp as admin_bp
+from app.blueprints.dashboard import bp as dashboard_bp
+from app.blueprints.health import bp as health_bp
+from app.blueprints.jobs import bp as jobs_bp
+from app.blueprints.model_registry import bp as models_bp
+from app.blueprints.policies import bp as policies_bp
+from app.blueprints.stream import bp as stream_bp
 
 # Create the Flask-Security-Too object at the module level
 security = Security()
@@ -71,8 +85,17 @@ def create_app():
     def index():
         return jsonify({"message": "Welcome to the IntelliDocs API"})
 
-    # Register blueprints, if any, here
-    # from .blueprints.your_blueprint import bp
-    # app.register_blueprint(bp)
+    # Register blueprints
+    app.register_blueprint(chat_bp, url_prefix='/api/v1/chat')
+    app.register_blueprint(documents_bp, url_prefix='/api/v1/documents')
+    app.register_blueprint(playbooks_bp, url_prefix='/api/v1/playbooks')
+    app.register_blueprint(categories_bp, url_prefix='/api/v1/categories')
+    app.register_blueprint(admin_bp, url_prefix='/api/v1/admin')
+    app.register_blueprint(dashboard_bp, url_prefix='/api/v1/dashboard')
+    app.register_blueprint(health_bp, url_prefix='/api/v1/health')
+    app.register_blueprint(jobs_bp, url_prefix='/api/v1/jobs')
+    app.register_blueprint(models_bp, url_prefix='/api/v1/models')
+    app.register_blueprint(policies_bp, url_prefix='/api/v1/policies')
+    app.register_blueprint(stream_bp, url_prefix='/api/v1/stream')
 
     return app
