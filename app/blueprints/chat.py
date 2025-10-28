@@ -10,7 +10,7 @@ from app.vector_store import get_vector_store
 from app.ai_models import get_llm, get_embeddings
 from app.utils.doc_utils import extract_text
 from bson import ObjectId
-from app.chat_worker import global_chat_agent_task
+from app.celery_worker import global_chat_agent_task
 
 chat_bp = Blueprint('chat_bp', __name__)
 logger = logging.getLogger(__name__)
