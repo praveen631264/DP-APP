@@ -46,17 +46,14 @@ def on_task_prerun(task_id, task, *args, **kwargs):
     Before a task runs, store its ID in thread-local storage.
     This allows the shutdown handler to know which job was running.
     """
-    # Clear any previous job ID from the thread-local storage
     active_job_tracker.current_job_id = None
     active_job_tracker.current_job_type = None
 
     if task.name == 'fine_tune_model_task':
-        # The job_id for training tasks is passed in the arguments
         job_id = kwargs.get('kwargs', {}).get('job_id') or str(uuid.uuid4())
         active_job_tracker.current_job_id = job_id
         active_job_tracker.current_job_type = 'training'
     elif task.name == 'batch_process_chunks_task':
-        # For document processing, the job is the document itself.
         doc_id = kwargs.get('args', [None])[0]
         active_job_tracker.current_job_id = doc_id
         active_job_tracker.current_job_type = 'document_processing'
@@ -64,21 +61,59 @@ def on_task_prerun(task_id, task, *args, **kwargs):
 @worker_shutdown.connect
 def on_worker_shutdown(sender, **kwargs):
     """
-    Handles graceful shutdown of a Celery worker.
-    It finds any 'RUNNING' job associated with this worker and marks it as 'INTERRUPTED'.
+    Handles graceful shutdown. Marks any 'RUNNING' job as 'INTERRUPTED'.
     """
-    logger.warning("Celery worker shutting down. Checking for active jobs to mark as interrupted.")
-    if hasattr(active_job_tracker, 'current_job_id'):
+    logger.warning("Celery worker shutting down. Checking for active jobs...")
+    if hasattr(active_job_tracker, 'current_job_id') and active_job_tracker.current_job_id:
         job_id = active_job_tracker.current_job_id
-        # We need a direct DB connection as the app context is gone during shutdown.
+        job_type = getattr(active_job_tracker, 'current_job_type', None)
+        
         from app.database import MongoDatabase
         from config import Config
         db = MongoDatabase(Config.MONGO_URI, Config.VECTOR_DIMENSIONS)
 
-        if getattr(active_job_tracker, 'current_job_type', None) == 'training':
+        if job_type == 'training':
             db.update_job_status(job_id, 'INTERRUPTED', {"reason": "Worker shutdown."})
-            logger.warning(f"Successfully marked active training job {job_id} as 'INTERRUPTED'.")
-        elif getattr(active_job_tracker, 'current_job_type', None) == 'document_processing':
-            # For documents, we update the document's own status
-            db.documents.update_one({'_id': ObjectId(job_id)}, {'$set': {'status': 'INTERRUPTED', 'status_message': 'Processing was interrupted by worker shutdown.'}})
-            logger.warning(f"Successfully marked active document {job_id} as 'INTERRUPTED'.")
+            logger.warning(f"Marked training job {job_id} as 'INTERRUPTED'.")
+        elif job_type == 'document_processing':
+            db.documents.update_one({'_id': ObjectId(job_id)}, {'$set': {'status': 'INTERRUPTED', 'status_message': 'Processing interrupted.'}})
+            logger.warning(f"Marked document {job_id} as 'INTERRUPTED'.")
+
+@celery.task(name="global_chat_agent_task")
+def global_chat_agent_task(query: str, session_id: str):
+    """
+    Celery task to run the global chat agent and stream the response via Socket.IO.
+    """
+    logger.info(f"CELERY TASK: Starting global chat agent for session {session_id} with query: '{query}'")
+    
+    socketio = current_app.extensions.get('socketio')
+    if not socketio:
+        logger.error("SocketIO extension not found. Cannot stream response.")
+        return
+
+    try:
+        # Import here to avoid circular dependencies at module load time
+        from app.blueprints.chat import get_global_agent_executor
+        
+        llm = get_llm()
+        agent_executor = get_global_agent_executor(llm)
+
+        # Use the 'stream' method to get a real-time token stream
+        for chunk in agent_executor.stream({"input": query}):
+            # The stream yields a dictionary. We check for the answer chunk.
+            if "messages" in chunk:
+                # The actual content is in the last message of the list
+                message = chunk["messages"][-1]
+                if hasattr(message, 'content'):
+                    token = message.content
+                    # Emit each token as it arrives
+                    socketio.emit('chat_token', {'token': token}, room=session_id)
+        
+        # Signal the end of the stream
+        socketio.emit('chat_stream_end', room=session_id)
+        logger.info(f"CELERY TASK: Agent stream finished for session {session_id}.")
+
+    except Exception as e:
+        logger.error(f"Error during agent execution for session {session_id}: {e}", exc_info=True)
+        if socketio:
+            socketio.emit('chat_error', {'error': 'An error occurred processing your request.'}, room=session_id)
