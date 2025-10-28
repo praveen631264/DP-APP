@@ -1,16 +1,10 @@
-# Use an official Python runtime as a parent image
-FROM python:3.9-slim
+# Use the base image we will create, which contains all dependencies
+FROM doc-processing-base:latest
 
-# Set the working directory in the container
-WORKDIR /app
+# The working directory is already set to /app in the base image
 
-# Copy the requirements file into the container at /app
-COPY requirements.txt .
-
-# Install any needed packages specified in requirements.txt
-RUN pip install -r requirements.txt
-
-# Copy the rest of the application code into the container at /app
+# Copy the application code into the container at /app
+# This is the only part that will be re-built on most code changes
 COPY . .
 
 # Make port 8080 available to the world outside this container

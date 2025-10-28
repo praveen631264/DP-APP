@@ -1,0 +1,17 @@
+# Stage 1: Create the base image with all dependencies
+# This stage is only re-built when requirements.txt changes
+
+# Use the official Python image as a parent image
+FROM python:3.9-slim
+
+# Set the working directory in the container
+WORKDIR /app
+
+# Install system-level packages needed for some Python libraries to compile
+RUN apt-get update && apt-get install -y --no-install-recommends gcc && rm -rf /var/lib/apt/lists/*
+
+# Copy the dependencies file
+COPY requirements.txt .
+
+# Install the Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
