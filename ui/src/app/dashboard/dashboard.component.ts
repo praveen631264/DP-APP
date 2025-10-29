@@ -5,7 +5,7 @@ import { ColDef } from 'ag-grid-community';
 import { DashboardService, DashboardStats } from '../services/dashboard.service';
 import { DocumentService, PaginatedDocumentsResponse } from '../services/document.service';
 import { Document } from '../models/document.model';
-import { ActionsCellRendererComponent } from '../document-actions/actions-cell-renderer.component';
+import { ActionsCellRendererComponent } from './actions-cell-renderer.component';
 import { NgxChartsModule } from '@swimlane/ngx-charts';
 import { Subscription } from 'rxjs';
 
@@ -14,7 +14,7 @@ import { Subscription } from 'rxjs';
   templateUrl: './dashboard.component.html',
   styleUrls: ['./dashboard.component.scss'],
   standalone: true,
-  imports: [CommonModule, AgGridModule, NgxChartsModule],
+  imports: [CommonModule, AgGridModule, NgxChartsModule, ActionsCellRendererComponent],
 })
 export class DashboardComponent implements OnInit, OnDestroy {
 

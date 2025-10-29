@@ -11,8 +11,17 @@ export class SocketIoService {
 
   constructor() {
     this.socket = io(environment.socketUrl, {
+      autoConnect: false, // We will connect manually
       transports: ['websocket']
     });
+  }
+
+  connect() {
+    this.socket.connect();
+  }
+
+  disconnect() {
+    this.socket.disconnect();
   }
 
   listen<T>(eventName: string): Observable<T> {
@@ -28,5 +37,14 @@ export class SocketIoService {
 
   emit(eventName: string, data: any) {
     this.socket.emit(eventName, data);
+  }
+
+  getSid(): string | undefined {
+    return this.socket.id;
+  }
+  
+  // Adding the 'on' method back for compatibility
+  on(eventName: string): Observable<any> {
+    return this.listen(eventName);
   }
 }

@@ -2,7 +2,7 @@ import { Component, Input, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ChatService, ChatMessage } from '../services/chat.service';
-import { SocketIOService } from '../services/socket-io.service';
+import { SocketIoService } from '../services/socket-io.service';
 import { Subscription } from 'rxjs';
 
 @Component({
@@ -23,7 +23,7 @@ export class ChatPanelComponent implements OnInit, OnDestroy {
 
   constructor(
     private chatService: ChatService,
-    private socketService: SocketIOService
+    private socketService: SocketIoService
   ) { }
 
   ngOnInit(): void {
@@ -31,7 +31,7 @@ export class ChatPanelComponent implements OnInit, OnDestroy {
       this.socketService.connect();
       const sid = this.socketService.getSid();
       if (sid) {
-        this.socketSubscription = this.socketService.on('chat_response').subscribe(message => {
+        this.socketSubscription = this.socketService.on('chat_response').subscribe((message: ChatMessage) => {
           this.messages.push(message);
         });
       }

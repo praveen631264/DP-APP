@@ -1,4 +1,3 @@
-
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, Subject } from 'rxjs';
@@ -48,12 +47,12 @@ export class PlaybookService {
     return this.http.get<Playbook>(`${this.apiUrl}/${id}`);
   }
 
-  createPlaybook(playbook: Playbook): void {
-    this.socketService.emit('create_playbook', playbook);
+  createPlaybook(playbook: Playbook): Observable<any> {
+    return this.http.post(this.apiUrl, playbook);
   }
 
-  updatePlaybook(id: string, playbook: Playbook): void {
-    this.socketService.emit('update_playbook', { id, ...playbook });
+  updatePlaybook(id: string, playbook: Playbook): Observable<any> {
+    return this.http.put(`${this.apiUrl}/${id}`, playbook);
   }
 
   deletePlaybook(id: string): void {

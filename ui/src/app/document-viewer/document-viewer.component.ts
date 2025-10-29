@@ -1,4 +1,5 @@
 import { Component } from '@angular/core';
+import { CommonModule } from '@angular/common';
 import { ChatPanelComponent } from '../chat-panel/chat-panel.component';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { CategorizationDialogComponent } from '../categorization-dialog/categorization-dialog.component';
@@ -8,7 +9,7 @@ import { CategorizationDialogComponent } from '../categorization-dialog/categori
   templateUrl: './document-viewer.component.html',
   styleUrls: ['./document-viewer.component.scss'],
   standalone: true,
-  imports: [ChatPanelComponent, MatDialogModule]
+  imports: [CommonModule, ChatPanelComponent, MatDialogModule]
 })
 export class DocumentViewerComponent {
 

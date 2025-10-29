@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
-import { SocketIOService } from './socket-io.service';
+import { SocketIoService } from './socket-io.service';
 
 export interface DocumentStatusUpdate {
   doc_id: string;
@@ -12,7 +12,7 @@ export interface DocumentStatusUpdate {
 })
 export class SocketService {
 
-  constructor(private socketIoService: SocketIOService) { }
+  constructor(private socketIoService: SocketIoService) { }
 
   onDocumentStatusChanged(): Observable<DocumentStatusUpdate> {
     return this.socketIoService.on('document_status_changed');
