@@ -120,11 +120,10 @@ def delete_playbook(playbook_id):
         logger.error(f"Error deleting playbook {playbook_id}: {e}", exc_info=True)
         return jsonify({"error": "An internal error occurred"}), 500
 
-from app.playbook_steps import get_step_metadata
-
 @bp.route('/playbooks/steps', methods=['GET'])
 def get_playbook_steps():
     """Returns the metadata for all available playbook steps."""
+    from app.playbook_steps import get_step_metadata
     try:
         metadata = get_step_metadata()
         return jsonify(metadata), 200
