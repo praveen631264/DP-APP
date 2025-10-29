@@ -3,7 +3,7 @@ import json
 from flask import Blueprint, Response, current_app
 import redis
 
-stream_bp = Blueprint('stream_bp', __name__)
+bp = Blueprint('stream_bp', __name__)
 logger = logging.getLogger(__name__)
 
 def publish_status_update(doc_id: str, status: str, message: str):
@@ -21,7 +21,7 @@ def publish_status_update(doc_id: str, status: str, message: str):
     except Exception as e:
         logger.error(f"Failed to publish status update for doc {doc_id} to Redis: {e}", exc_info=True)
 
-@stream_bp.route('/documents/<doc_id>/status-stream')
+@bp.route('/documents/<doc_id>/status-stream')
 def status_stream(doc_id):
     """
     This endpoint provides a stream of status updates for a specific document

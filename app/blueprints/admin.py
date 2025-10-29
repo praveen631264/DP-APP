@@ -6,10 +6,10 @@ from app.audit import log_audit_event
 from bson import json_util, ObjectId
 from app.models import User, Role
 
-admin_bp = Blueprint('admin_bp', __name__)
+bp = Blueprint('admin_bp', __name__)
 logger = logging.getLogger(__name__)
 
-@admin_bp.route('/users/pending', methods=['GET'])
+@bp.route('/users/pending', methods=['GET'])
 @auth_required('token')
 @roles_required('admin')
 def get_pending_users():
@@ -27,7 +27,7 @@ def get_pending_users():
         logger.error(f"Error fetching pending users: {e}", exc_info=True)
         return jsonify({"error": "An internal error occurred"}), 500
 
-@admin_bp.route('/users/<user_id>/approve', methods=['POST'])
+@bp.route('/users/<user_id>/approve', methods=['POST'])
 @auth_required('token')
 @roles_required('admin')
 def approve_user(user_id):
@@ -59,7 +59,7 @@ def approve_user(user_id):
 
 # --- AACL Policy Management Endpoints ---
 
-@admin_bp.route('/policies', methods=['GET'])
+@bp.route('/policies', methods=['GET'])
 @auth_required('token')
 @roles_required('admin')
 def get_all_policies():
@@ -72,7 +72,7 @@ def get_all_policies():
         logger.error(f"Error fetching AACL policies: {e}", exc_info=True)
         return jsonify({"error": "An internal error occurred"}), 500
 
-@admin_bp.route('/users/<user_id>/reset-mfa', methods=['POST'])
+@bp.route('/users/<user_id>/reset-mfa', methods=['POST'])
 @auth_required('token')
 @roles_required('admin')
 def reset_mfa(user_id):
@@ -94,7 +94,7 @@ def reset_mfa(user_id):
     logger.info(f"Admin has reset MFA for user {user.email}")
     return jsonify({"message": f"MFA has been reset for user {user.email}."}), 200
 
-@admin_bp.route('/audit-log', methods=['GET'])
+@bp.route('/audit-log', methods=['GET'])
 @auth_required('token')
 @roles_required('admin')
 def get_audit_log():
@@ -125,7 +125,7 @@ def get_audit_log():
         logger.error(f"Error fetching audit log: {e}", exc_info=True)
         return jsonify({"error": "An internal server error occurred"}), 500
 
-@admin_bp.route('/policies/<path:resource>', methods=['DELETE'])
+@bp.route('/policies/<path:resource>', methods=['DELETE'])
 @auth_required('token')
 @roles_required('admin')
 def delete_policy(resource):
@@ -145,7 +145,7 @@ def delete_policy(resource):
         logger.error(f"Error deleting AACL policy for '{resource}': {e}", exc_info=True)
         return jsonify({"error": "An internal server error occurred"}), 500
 
-@admin_bp.route('/policies', methods=['POST'])
+@bp.route('/policies', methods=['POST'])
 @auth_required('token')
 @roles_required('admin')
 def set_policy():
@@ -171,35 +171,7 @@ def set_policy():
         logger.error(f"Error setting AACL policy for '{resource}': {e}", exc_info=True)
         return jsonify({"error": "An internal error occurred"}), 500
 
-@admin_bp.route('/users', methods=['GET'])
-@auth_required('token')
-@roles_required('admin')
-def list_users():
-    """
-    Provides a list of all users in the system for administration.
-    """
-    try:
-        users = User.objects.all()
-        user_list = []
-        for user in users:
-            user_list.append({
-                "id": str(user.id),
-                "email": user.email,
-                "active": user.active,
-                "approved": user.approved,
-                "roles": [role.name for role in user.roles],
-                "confirmed_at": user.confirmed_at,
-                "created_at": user.created_at
-            })
-        return jsonify(user_list)
-    except Exception as e:
-        logger.error(f"Error listing users: {e}", exc_info=True)
-        return jsonify({"error": "An internal server error occurred"}), 500
-
-
-
-
-@admin_bp.route('/users', methods=['GET'])
+@bp.route('/users', methods=['GET'])
 @auth_required('token')
 @roles_required('admin')
 def list_users():

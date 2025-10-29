@@ -4,10 +4,10 @@ from flask_security import auth_required
 import datetime
 from app.models import User
 
-dashboard_bp = Blueprint('dashboard_bp', __name__)
+bp = Blueprint('dashboard_bp', __name__)
 logger = logging.getLogger(__name__)
 
-@dashboard_bp.route('/dashboard/stats', methods=['GET'])
+@bp.route('/dashboard/stats', methods=['GET'])
 @auth_required('token')
 def get_dashboard_stats():
     """

@@ -1,9 +1,9 @@
 from flask import Blueprint, jsonify, current_app
 
 # Create a new blueprint
-model_registry_bp = Blueprint('model_registry_bp', __name__, url_prefix='/api/v1/registry')
+bp = Blueprint('model_registry_bp', __name__, url_prefix='/api/v1/registry')
 
-@model_registry_bp.route('/models', methods=['GET'])
+@bp.route('/models', methods=['GET'])
 def list_models():
     """
     Lists all models in the registry.

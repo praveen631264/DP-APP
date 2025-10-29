@@ -7,7 +7,7 @@ from typing import List, Dict, Any, Optional
 from app.security import admin_required
 
 
-playbooks_bp = Blueprint('playbooks_bp', __name__)
+bp = Blueprint('playbooks_bp', __name__)
 logger = logging.getLogger(__name__)
 
 # --- Pydantic Models for Validation ---
@@ -25,7 +25,7 @@ class PlaybookModel(BaseModel):
     steps: List[PlaybookStepModel]
     final_status: Optional[str] = 'Processed'
 
-@playbooks_bp.route('/playbooks', methods=['POST'])
+@bp.route('/playbooks', methods=['POST'])
 def create_playbook():
     """Creates a new playbook."""
     db = current_app.db
@@ -45,7 +45,7 @@ def create_playbook():
         logger.error(f"Error creating playbook: {e}", exc_info=True)
         return jsonify({"error": "An internal error occurred"}), 500
 
-@playbooks_bp.route('/playbooks', methods=['GET'])
+@bp.route('/playbooks', methods=['GET'])
 def get_playbooks():
     """Retrieves a list of all playbooks, optionally filtered by category."""
     db = current_app.db
@@ -57,7 +57,7 @@ def get_playbooks():
         logger.error(f"Error fetching playbooks: {e}", exc_info=True)
         return jsonify({"error": "An internal error occurred"}), 500
 
-@playbooks_bp.route('/playbooks/<playbook_id>', methods=['GET'])
+@bp.route('/playbooks/<playbook_id>', methods=['GET'])
 def get_playbook(playbook_id):
     """Retrieves a single playbook by its ID."""
     db = current_app.db
@@ -74,7 +74,7 @@ def get_playbook(playbook_id):
         logger.error(f"Error fetching playbook {playbook_id}: {e}", exc_info=True)
         return jsonify({"error": "An internal error occurred"}), 500
 
-@playbooks_bp.route('/playbooks/<playbook_id>', methods=['PUT'])
+@bp.route('/playbooks/<playbook_id>', methods=['PUT'])
 def update_playbook(playbook_id):
     """Updates an existing playbook."""
     db = current_app.db
@@ -103,7 +103,7 @@ def update_playbook(playbook_id):
         logger.error(f"Error updating playbook {playbook_id}: {e}", exc_info=True)
         return jsonify({"error": "An internal error occurred"}), 500
 
-@playbooks_bp.route('/playbooks/<playbook_id>', methods=['DELETE'])
+@bp.route('/playbooks/<playbook_id>', methods=['DELETE'])
 def delete_playbook(playbook_id):
     """Deletes a playbook."""
     db = current_app.db
@@ -122,7 +122,7 @@ def delete_playbook(playbook_id):
 
 from app.playbook_steps import get_step_metadata
 
-@playbooks_bp.route('/playbooks/steps', methods=['GET'])
+@bp.route('/playbooks/steps', methods=['GET'])
 def get_playbook_steps():
     """Returns the metadata for all available playbook steps."""
     try:

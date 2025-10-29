@@ -3,10 +3,10 @@ from flask import Blueprint, jsonify, current_app
 from bson import json_util
 from app.security import admin_required
 
-jobs_bp = Blueprint('jobs_bp', __name__)
+bp = Blueprint('jobs_bp', __name__)
 logger = logging.getLogger(__name__)
 
-@jobs_bp.route('/jobs', methods=['GET'])
+@bp.route('/jobs', methods=['GET'])
 @admin_required
 def get_all_jobs():
     """
@@ -22,7 +22,7 @@ def get_all_jobs():
         logger.error(f"Error fetching jobs: {e}", exc_info=True)
         return jsonify({"error": "An internal error occurred"}), 500
 
-@jobs_bp.route('/jobs/<job_id>/stop', methods=['POST'])
+@bp.route('/jobs/<job_id>/stop', methods=['POST'])
 @admin_required
 def stop_job(job_id):
     """
