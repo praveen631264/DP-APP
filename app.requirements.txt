@@ -1,2 +1,4 @@
 dpath
 jmespath
+pyotp
+qrcode
