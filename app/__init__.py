@@ -31,6 +31,7 @@ def create_app():
     app.config['TESTING'] = False
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'a-hard-to-guess-string')
     app.config['MONGO_URI'] = os.environ.get('MONGO_URI')
+    app.config['VECTOR_DIMENSIONS'] = int(os.environ.get('VECTOR_DIMENSIONS', 384))
 
     # Celery Configuration
     app.config['CELERY_BROKER_URL'] = os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/0')
