@@ -8,7 +8,7 @@ from io import BytesIO
 from app.utils.json_encoder import JSONEncoder
 from bson import ObjectId
 
-documents_bp = Blueprint('documents_bp', __name__)
+bp = Blueprint('documents_bp', __name__)
 logger = logging.getLogger(__name__)
 
 ALLOWED_EXTENSIONS = {'pdf', 'docx', 'txt', 'xlsx', 'md'}
@@ -17,7 +17,7 @@ def allowed_file(filename):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-@documents_bp.route('/documents', methods=['POST'])
+@bp.route('/documents', methods=['POST'])
 def upload_document():
     """
     Uploads a new document for processing.
@@ -53,7 +53,7 @@ def upload_document():
     else:
         return jsonify({"error": "File type not allowed"}), 400
 
-@documents_bp.route('/documents', methods=['GET'])
+@bp.route('/documents', methods=['GET'])
 def get_documents():
     """
     Retrieves a paginated, sorted, and filtered list of documents.
@@ -80,7 +80,7 @@ def get_documents():
         logger.error(f"Error fetching documents: {e}", exc_info=True)
         return jsonify({"error": "An internal error occurred"}), 500
 
-@documents_bp.route('/documents/<doc_id>', methods=['GET'])
+@bp.route('/documents/<doc_id>', methods=['GET'])
 def get_document_details(doc_id):
     """Retrieves all details for a single document by its ID."""
     db = current_app.db
@@ -96,7 +96,7 @@ def get_document_details(doc_id):
         logger.error(f"Error fetching document {doc_id}: {e}", exc_info=True)
         return jsonify({"error": "An internal error occurred"}), 500
 
-@documents_bp.route('/documents/<doc_id>', methods=['DELETE'])
+@bp.route('/documents/<doc_id>', methods=['DELETE'])
 def delete_document(doc_id):
     """
     Soft-deletes a document. This is a non-destructive operation.
@@ -117,7 +117,7 @@ def delete_document(doc_id):
         logger.error(f"Error soft-deleting document {doc_id}: {e}", exc_info=True)
         return jsonify({"error": "An internal error occurred"}), 500
 
-@documents_bp.route('/documents/search', methods=['GET'])
+@bp.route('/documents/search', methods=['GET'])
 def search_documents():
     """Searches for documents by filename."""
     db = current_app.db
@@ -131,7 +131,7 @@ def search_documents():
         logger.error(f"Error during document search for query '{query}': {e}", exc_info=True)
         return jsonify({"error": "An internal error occurred"}), 500
 
-@documents_bp.route('/documents/<doc_id>/download', methods=['GET'])
+@bp.route('/documents/<doc_id>/download', methods=['GET'])
 @attribute_required # The policy is now fetched from the database
 def download_document(doc_id):
     """Downloads the original file for a given document."""
@@ -153,7 +153,7 @@ def download_document(doc_id):
         logger.error(f"Error downloading file for doc {doc_id}: {e}", exc_info=True)
         return jsonify({"error": "An internal error occurred"}), 500
 
-@documents_bp.route('/documents/<doc_id>/kvp', methods=['PUT'])
+@bp.route('/documents/<doc_id>/kvp', methods=['PUT'])
 def update_kvp(doc_id):
     db = current_app.db
     data = request.get_json()
@@ -173,7 +173,7 @@ def update_kvp(doc_id):
     updated_doc = db.get_document(doc_id)
     return jsonify({"message": "KVP updated successfully", "document": updated_doc})
 
-@documents_bp.route('/documents/<doc_id>/recategorize', methods=['PUT'])
+@bp.route('/documents/<doc_id>/recategorize', methods=['PUT'])
 def recategorize_document(doc_id):
     """
     Manually changes the category of a document and provides an explanation.
@@ -202,7 +202,7 @@ def recategorize_document(doc_id):
         logger.error(f"Error re-categorizing document {doc_id}: {e}", exc_info=True)
         return jsonify({"error": "An internal error occurred"}), 500
 
-@documents_bp.route('/documents/<doc_id>/reprocess', methods=['POST'])
+@bp.route('/documents/<doc_id>/reprocess', methods=['POST'])
 def reprocess_document(doc_id):
     """Re-triggers the entire processing pipeline for a document."""
     try:
@@ -218,7 +218,7 @@ def reprocess_document(doc_id):
         logger.error(f"Error triggering reprocessing for doc {doc_id}: {e}", exc_info=True)
         return jsonify({"error": "An internal error occurred"}), 500
 
-@documents_bp.route('/documents/<doc_id>/stop', methods=['POST'])
+@bp.route('/documents/<doc_id>/stop', methods=['POST'])
 def stop_document_processing(doc_id):
     """
     Cooperatively stops the processing of a document by setting its status to 'Force Stopped'.
@@ -244,7 +244,7 @@ def stop_document_processing(doc_id):
         logger.error(f"Error stopping processing for doc {doc_id}: {e}", exc_info=True)
         return jsonify({"error": "An internal error occurred"}), 500
 
-@documents_bp.route('/documents/<doc_id>/history', methods=['GET'])
+@bp.route('/documents/<doc_id>/history', methods=['GET'])
 def get_document_history(doc_id):
     """Retrieves the audit trail (history) for a single document."""
     db = current_app.db
