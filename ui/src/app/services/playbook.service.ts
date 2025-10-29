@@ -1,13 +1,14 @@
+
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, Subject } from 'rxjs';
+import { SocketIoService } from './socket-io.service';
+import { environment } from '../../environments/environment';
 
-// Define the models for Playbook and PlaybookStep
-// These should match the Pydantic models on the backend.
 export interface PlaybookStep {
   type: string;
   name: string;
-  [key: string]: any; // Allow other properties
+  [key: string]: any;
 }
 
 export interface Playbook {
@@ -22,15 +23,21 @@ export interface Playbook {
   providedIn: 'root'
 })
 export class PlaybookService {
+  private apiUrl = `${environment.apiUrl}/playbooks`;
+  private refreshNeeded$ = new Subject<void>();
 
-  private apiUrl = '/api'; // Assuming the Flask API is proxied under /api
+  constructor(private http: HttpClient, private socketService: SocketIoService) {
+    this.socketService.listen('playbook_updated').subscribe(() => {
+      this.refreshNeeded$.next();
+    });
 
-  constructor(private http: HttpClient) { }
-
-  // --- Playbook Methods ---
+    this.socketService.listen('playbook_deleted').subscribe(() => {
+      this.refreshNeeded$.next();
+    });
+  }
 
   getPlaybooks(category_name?: string): Observable<Playbook[]> {
-    let url = `${this.apiUrl}/playbooks`;
+    let url = this.apiUrl;
     if (category_name) {
       url += `?category_name=${category_name}`;
     }
@@ -38,24 +45,26 @@ export class PlaybookService {
   }
 
   getPlaybook(id: string): Observable<Playbook> {
-    return this.http.get<Playbook>(`${this.apiUrl}/playbooks/${id}`);
+    return this.http.get<Playbook>(`${this.apiUrl}/${id}`);
   }
 
-  createPlaybook(playbook: Playbook): Observable<Playbook> {
-    return this.http.post<Playbook>(`${this.apiUrl}/playbooks`, playbook);
+  createPlaybook(playbook: Playbook): void {
+    this.socketService.emit('create_playbook', playbook);
   }
 
-  updatePlaybook(id: string, playbook: Playbook): Observable<Playbook> {
-    return this.http.put<Playbook>(`${this.apiUrl}/playbooks/${id}`, playbook);
+  updatePlaybook(id: string, playbook: Playbook): void {
+    this.socketService.emit('update_playbook', { id, ...playbook });
   }
 
-  deletePlaybook(id: string): Observable<any> {
-    return this.http.delete(`${this.apiUrl}/playbooks/${id}`);
+  deletePlaybook(id: string): void {
+    this.socketService.emit('delete_playbook', { id });
   }
-
-  // --- Step Metadata Method ---
 
   getStepMetadata(): Observable<any> {
-    return this.http.get(`${this.apiUrl}/playbooks/steps`);
+    return this.http.get(`${this.apiUrl}/steps`);
+  }
+
+  onRefreshNeeded(): Observable<void> {
+    return this.refreshNeeded$.asObservable();
   }
 }

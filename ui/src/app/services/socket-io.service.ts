@@ -6,30 +6,27 @@ import { environment } from '../../environments/environment';
 @Injectable({
   providedIn: 'root'
 })
-export class SocketIOService {
-  private socket!: Socket;
+export class SocketIoService {
+  private socket: Socket;
 
-  constructor() { }
-
-  connect(): void {
-    this.socket = io(environment.socketIoUrl);
+  constructor() {
+    this.socket = io(environment.socketUrl, {
+      transports: ['websocket']
+    });
   }
 
-  disconnect(): void {
-    if (this.socket) {
-      this.socket.disconnect();
-    }
-  }
-
-  getSid(): string | undefined {
-    return this.socket ? this.socket.id : undefined;
-  }
-
-  on(eventName: string): Observable<any> {
+  listen<T>(eventName: string): Observable<T> {
     return new Observable(observer => {
-      this.socket.on(eventName, data => {
+      this.socket.on(eventName, (data: T) => {
         observer.next(data);
       });
+
+      // Teardown logic
+      return () => this.socket.off(eventName);
     });
+  }
+
+  emit(eventName: string, data: any) {
+    this.socket.emit(eventName, data);
   }
 }

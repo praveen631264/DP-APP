@@ -1,7 +1,8 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
 import { Playbook, PlaybookService } from '../services/playbook.service';
+import { Subscription } from 'rxjs';
 
 @Component({
   selector: 'app-playbook-list',
@@ -10,9 +11,10 @@ import { Playbook, PlaybookService } from '../services/playbook.service';
   standalone: true,
   imports: [CommonModule, RouterModule]
 })
-export class PlaybookListComponent implements OnInit {
+export class PlaybookListComponent implements OnInit, OnDestroy {
 
   public playbooks: Playbook[] = [];
+  private refreshSubscription!: Subscription;
 
   constructor(
     private playbookService: PlaybookService,
@@ -21,6 +23,15 @@ export class PlaybookListComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadPlaybooks();
+    this.refreshSubscription = this.playbookService.onRefreshNeeded().subscribe(() => {
+      this.loadPlaybooks();
+    });
+  }
+
+  ngOnDestroy(): void {
+    if (this.refreshSubscription) {
+      this.refreshSubscription.unsubscribe();
+    }
   }
 
   loadPlaybooks(): void {
@@ -39,9 +50,7 @@ export class PlaybookListComponent implements OnInit {
 
   deletePlaybook(id: string): void {
     if (confirm('Are you sure you want to delete this playbook?')) {
-      this.playbookService.deletePlaybook(id).subscribe(() => {
-        this.loadPlaybooks(); // Refresh the list
-      });
+        this.playbookService.deletePlaybook(id);
     }
   }
 }

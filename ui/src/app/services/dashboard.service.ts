@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, Subject } from 'rxjs';
 import { SocketIoService } from './socket-io.service';
+import { environment } from '../../environments/environment';
 
 export interface DashboardStats {
   total_documents: number;
@@ -15,15 +16,14 @@ export interface DashboardStats {
   providedIn: 'root'
 })
 export class DashboardService {
-  private apiUrl = '/api/v1/dashboard/stats';
+  private apiUrl = `${environment.apiUrl}/dashboard/stats`;
 
   private refreshNeeded$ = new Subject<void>();
 
   constructor(private http: HttpClient, private socketService: SocketIoService) {
-    // In a real app, you would connect to a socket service here
-    // this.socketService.listen('dashboard_update').subscribe(() => {
-    //   this.refreshNeeded$.next();
-    // });
+    this.socketService.listen('dashboard_update').subscribe(() => {
+      this.refreshNeeded$.next();
+    });
   }
 
   getStats(): Observable<DashboardStats> {

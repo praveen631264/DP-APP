@@ -1,12 +1,13 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { AgGridModule } from 'ag-grid-angular';
 import { ColDef } from 'ag-grid-community';
-import { DashboardService, DashboardStats } from './dashboard.service';
+import { DashboardService, DashboardStats } from '../services/dashboard.service';
 import { DocumentService, PaginatedDocumentsResponse } from '../services/document.service';
 import { Document } from '../models/document.model';
-import { ActionsCellRendererComponent } from './actions-cell-renderer.component';
+import { ActionsCellRendererComponent } from '../document-actions/actions-cell-renderer.component';
 import { NgxChartsModule } from '@swimlane/ngx-charts';
+import { Subscription } from 'rxjs';
 
 @Component({
   selector: 'app-dashboard',
@@ -15,10 +16,11 @@ import { NgxChartsModule } from '@swimlane/ngx-charts';
   standalone: true,
   imports: [CommonModule, AgGridModule, NgxChartsModule],
 })
-export class DashboardComponent implements OnInit {
+export class DashboardComponent implements OnInit, OnDestroy {
 
   public stats!: DashboardStats;
   public documents: Document[] = [];
+  private refreshSubscription!: Subscription;
 
   public columnDefs: ColDef[] = [
     { headerName: 'Filename', field: 'filename', sortable: true, filter: true },
@@ -33,6 +35,19 @@ export class DashboardComponent implements OnInit {
   ) { }
 
   ngOnInit(): void {
+    this.loadData();
+    this.refreshSubscription = this.dashboardService.onRefreshNeeded().subscribe(() => {
+      this.loadData();
+    });
+  }
+
+  ngOnDestroy(): void {
+    if (this.refreshSubscription) {
+      this.refreshSubscription.unsubscribe();
+    }
+  }
+
+  loadData(): void {
     this.dashboardService.getStats().subscribe(stats => {
       this.stats = stats;
     });
