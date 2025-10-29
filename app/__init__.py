@@ -31,6 +31,10 @@ def create_app():
     app.config['TESTING'] = False
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'a-hard-to-guess-string')
     app.config['MONGO_URI'] = os.environ.get('MONGO_URI')
+
+    # Celery Configuration
+    app.config['CELERY_BROKER_URL'] = os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/0')
+    app.config['CELERY_RESULT_BACKEND'] = os.environ.get('CELERY_RESULT_BACKEND', 'redis://localhost:6379/0')
     
     # Flask-Security-Too Configuration
     app.config['SECURITY_PASSWORD_SALT'] = os.environ.get('SECURITY_PASSWORD_SALT', 'a-different-hard-to-guess-string')
