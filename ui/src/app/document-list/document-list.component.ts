@@ -21,7 +21,7 @@ export interface PaginatedDocumentsResponse {
   templateUrl: './document-list.component.html',
   styleUrls: ['./document-list.component.scss'],
   standalone: true,
-  imports: [AgGridModule, DocumentUploadComponent, StatusViewerComponent, CommonModule, MatDialogModule, HttpClientModule, ActionsCellRendererComponent]
+  imports: [AgGridModule, DocumentUploadComponent, CommonModule, MatDialogModule, HttpClientModule]
 })
 export class DocumentListComponent implements OnInit {
   public columnDefs: any[] = [
