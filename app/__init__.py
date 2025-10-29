@@ -8,6 +8,7 @@ from app.database import init_db
 import click
 
 # Import blueprints
+from app.auth import auth_bp
 from app.blueprints.chat import bp as chat_bp
 from app.blueprints.documents import bp as documents_bp
 from app.blueprints.playbooks import bp as playbooks_bp
@@ -95,6 +96,7 @@ def create_app():
         return jsonify({"message": "Welcome to the IntelliDocs API"})
 
     # Register blueprints
+    app.register_blueprint(auth_bp, url_prefix='/api/v1/auth')
     app.register_blueprint(chat_bp, url_prefix='/api/v1/chat')
     app.register_blueprint(documents_bp, url_prefix='/api/v1/documents')
     app.register_blueprint(playbooks_bp, url_prefix='/api/v1/playbooks')
