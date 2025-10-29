@@ -10,21 +10,20 @@ from sentence_transformers import CrossEncoder
 llm_instance = None
 embeddings_instance = None
 cross_encoder_instance = None
-
-# --- Caching Setup ---
-# In a production environment, you would want to use a more persistent cache,
-# such as RedisCache, to share the cache between multiple worker processes.
-# For this example, we will use a simple in-memory cache.
-set_llm_cache(InMemoryCache())
+cache_initialized = False
 
 def get_llm():
     """
     Returns a singleton instance of the Language Model.
+    Initializes the cache on the first call.
     """
-    global llm_instance
+    global llm_instance, cache_initialized
+    if not cache_initialized:
+        # In a production environment, you might use a more persistent cache.
+        set_llm_cache(InMemoryCache())
+        cache_initialized = True
+        
     if llm_instance is None:
-        # As an optimization, you could use a smaller, faster model for the orchestrator
-        # and a more powerful model for the playbook steps.
         llm_instance = Ollama(
             base_url=current_app.config['OLLAMA_BASE_URL'],
             model=current_app.config['CHAT_MODEL_NAME']
