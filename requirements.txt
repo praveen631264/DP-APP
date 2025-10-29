@@ -10,9 +10,9 @@ langchain-community==0.0.17
 langchain-core==0.1.18
 langchain-openai==0.0.5
 fastembed==0.2.2
-unstructured==0.12.1
-pdf2image==1.17.0
-pymupdf==1.23.21
-sse-client-py==1.8.0
+unstructured
+pdf2image
+pymupdf
+sseclient-py==1.8.0
 flask-security-too==5.3.3
 email-validator==2.1.0.post1
