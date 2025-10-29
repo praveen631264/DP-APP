@@ -9,6 +9,7 @@ import click
 
 # Import blueprints
 from app.auth import auth_bp
+from app.profile import profile_bp # Import the profile blueprint
 from app.blueprints.chat import bp as chat_bp
 from app.blueprints.documents import bp as documents_bp
 from app.blueprints.playbooks import bp as playbooks_bp
@@ -97,6 +98,7 @@ def create_app():
 
     # Register blueprints
     app.register_blueprint(auth_bp, url_prefix='/api/v1/auth')
+    app.register_blueprint(profile_bp, url_prefix='/api/v1') # Register the profile blueprint
     app.register_blueprint(chat_bp, url_prefix='/api/v1/chat')
     app.register_blueprint(documents_bp, url_prefix='/api/v1/documents')
     app.register_blueprint(playbooks_bp, url_prefix='/api/v1/playbooks')
