@@ -38,6 +38,21 @@ class Playbook(Document):
     created_at = DateTimeField(default=datetime.datetime.utcnow)
     meta = {'collection': 'playbooks'}
 
+class Job(Document):
+    """A record of a background job (e.g., model training)."""
+    job_type = StringField(required=True)
+    status = StringField(default='PENDING')
+    details = DictField()
+    result = DictField()
+    command = StringField() # For sending commands like 'STOP'
+    created_at = DateTimeField(default=datetime.datetime.utcnow)
+    updated_at = DateTimeField(default=datetime.datetime.utcnow)
+    meta = {'collection': 'jobs'}
+
+    def save(self, *args, **kwargs):
+        self.updated_at = datetime.datetime.utcnow()
+        return super(Job, self).save(*args, **kwargs)
+
 class Document(Document):
     """The core model for a document in the system."""
     filename = StringField(required=True)
