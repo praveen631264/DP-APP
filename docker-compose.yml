@@ -28,6 +28,8 @@ services:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - OLLAMA_HOST=http://ollama:11434
+      - CHAT_MODEL_NAME=phi3:mini
+      - EMBEDDINGS_MODEL_NAME=BAAI/bge-large-en
     networks:
       - app-network
     volumes:
@@ -48,6 +50,8 @@ services:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - OLLAMA_HOST=http://ollama:11434
+      - CHAT_MODEL_NAME=phi3:mini
+      - EMBEDDINGS_MODEL_NAME=BAAI/bge-large-en
     networks:
       - app-network
     volumes:

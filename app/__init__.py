@@ -32,6 +32,10 @@ def create_app():
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'a-hard-to-guess-string')
     app.config['MONGO_URI'] = os.environ.get('MONGO_URI')
     app.config['VECTOR_DIMENSIONS'] = int(os.environ.get('VECTOR_DIMENSIONS', 384))
+    app.config['OLLAMA_BASE_URL'] = os.environ.get('OLLAMA_HOST') # Use OLLAMA_HOST
+    app.config['CHAT_MODEL_NAME'] = os.environ.get('CHAT_MODEL_NAME', 'llama2')
+    app.config['EMBEDDINGS_MODEL_NAME'] = os.environ.get('EMBEDDINGS_MODEL_NAME', 'BAAI/bge-large-en')
+
 
     # Celery Configuration
     app.config['CELERY_BROKER_URL'] = os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/0')
