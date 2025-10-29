@@ -3,8 +3,8 @@ services:
   # The UI service that builds the Angular app and serves it with Nginx
   ui:
     build:
-      context: ./ui
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ui/Dockerfile
     container_name: ui
     ports:
       - "80:80" # Expose the UI on port 80
