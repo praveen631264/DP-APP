@@ -3,7 +3,7 @@ import json
 from bson import ObjectId
 import datetime
 
-class CustomJSONEncoder(json.JSONEncoder):
+class JSONEncoder(json.JSONEncoder):
     def default(self, o):
         if isinstance(o, datetime.datetime):
             return o.isoformat()
@@ -13,7 +13,7 @@ class CustomJSONEncoder(json.JSONEncoder):
 
 class CustomJSONProvider(JSONProvider):
     def dumps(self, obj, **kwargs):
-        return json.dumps(obj, **kwargs, cls=CustomJSONEncoder)
+        return json.dumps(obj, **kwargs, cls=JSONEncoder)
 
     def loads(self, s, **kwargs):
         return json.loads(s, **kwargs)
