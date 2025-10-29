@@ -3,6 +3,12 @@ FROM doc-processing-base:latest
 
 # The working directory is already set to /app in the base image
 
+# Copy the new application-specific requirements file
+COPY app.requirements.txt .
+
+# Install the application-specific dependencies
+RUN pip install -r app.requirements.txt
+
 # Copy the application code into the container at /app
 # This is the only part that will be re-built on most code changes
 COPY . .
