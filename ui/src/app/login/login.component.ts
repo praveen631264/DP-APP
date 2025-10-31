@@ -58,8 +58,11 @@ export class LoginComponent {
         if (response.mfa_required) {
           this.mfaRequired = true;
           this.isLoading = false;
-        } else {
+        } else if (response.response?.token) {
           this.router.navigate(['/dashboard']);
+        } else {
+          this.snackBar.open('Login failed. Please check your credentials.', 'Close', { duration: 5000 });
+          this.isLoading = false;
         }
       },
       error: (err: any) => {
@@ -78,7 +81,14 @@ export class LoginComponent {
     const totp_code = this.mfaForm.value.totp_code;
 
     this.authService.loginWithMfa(email, totp_code).subscribe({
-      next: () => this.router.navigate(['/dashboard']),
+      next: (response: AuthResponse) => {
+        if (response.response?.token) {
+          this.router.navigate(['/dashboard']);
+        } else {
+          this.snackBar.open('MFA verification failed.', 'Close', { duration: 5000 });
+          this.isLoading = false;
+        }
+      },
       error: (err: any) => {
         this.snackBar.open(err.error?.error || 'MFA verification failed.', 'Close', { duration: 5000 });
         this.isLoading = false;
