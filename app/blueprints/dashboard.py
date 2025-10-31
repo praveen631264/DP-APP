@@ -8,7 +8,7 @@ bp = Blueprint('dashboard_bp', __name__)
 logger = logging.getLogger(__name__)
 
 @bp.route('/stats', methods=['GET'])
-@auth_required('token')
+# @auth_required('token')
 def get_dashboard_stats():
     """
     Retrieves aggregated statistics for the main dashboard.

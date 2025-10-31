@@ -73,7 +73,7 @@ def get_global_agent_executor(llm: BaseLanguageModel) -> AgentExecutor:
     return AgentExecutor(agent=agent, tools=tools, verbose=True)
 
 @bp.route('/global', methods=['POST'])
-@auth_required('token')
+# @auth_required('token')
 def trigger_global_chat_agent():
     """
     Handles global chat queries by asynchronously dispatching the agent task.
@@ -119,7 +119,7 @@ You have access to the document's text and its currently extracted Key-Value Pai
 )
 
 @bp.route('/document', methods=['POST'])
-@auth_required('token')
+# @auth_required('token')
 def chat_with_document():
     """
     Handles chat messages related to a single, specific document.

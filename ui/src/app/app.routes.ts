@@ -11,11 +11,11 @@ import { PlaybookListComponent } from './playbook-list/playbook-list.component';
 import { PlaybookEditorComponent } from './playbook-editor/playbook-editor.component';
 
 export const routes: Routes = [
-  { path: 'login', component: LoginComponent, canActivate: [LoginGuard] },
+  { path: 'login', component: LoginComponent, /* canActivate: [LoginGuard] */ },
   {
     path: '',
     component: LayoutComponent,
-    canActivate: [authGuard],
+    /* canActivate: [authGuard], */
     children: [
       { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
       {
@@ -45,17 +45,17 @@ export const routes: Routes = [
       {
         path: 'category-management',
         component: CategoryManagementComponent,
-        canActivate: [adminGuard]
+        /* canActivate: [adminGuard] */
       },
       {
         path: 'user-management',
         component: UserManagementComponent,
-        canActivate: [adminGuard]
+        /* canActivate: [adminGuard] */
       },
       {
         path: 'audit-log',
         component: AuditLogComponent,
-        canActivate: [adminGuard]
+        /* canActivate: [adminGuard] */
       },
       {
         path: 'settings',

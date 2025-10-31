@@ -12,7 +12,7 @@ def attribute_required(f):
     defined in the database for the requested resource path.
     """
     @wraps(f)
-    @auth_required() # Ensures the user is logged in first
+    # @auth_required() # Ensures the user is logged in first
     def decorated_view(*args, **kwargs):
         # The resource is identified by the endpoint rule (e.g., '/api/v1/documents/<doc_id>/download')
         resource_path = request.url_rule.rule
@@ -20,21 +20,22 @@ def attribute_required(f):
 
         # If no policy is defined for this resource, access is denied by default for safety.
         if not policy_doc or not policy_doc.get('policy'):
-            logger.warning(f"AACL check failed for user {current_user.email} on resource '{resource_path}'. No policy defined.")
+            logger.warning(f"AACL check failed for user on resource '{resource_path}'. No policy defined.")
             return jsonify({"error": "Forbidden: Access policy for this resource is not configured."}), 403
 
         resource_attributes = policy_doc['policy']
-        user_attributes = current_user.attributes
+        # Since auth is disabled, we can't get user attributes. Skip this check.
+        # user_attributes = current_user.attributes
 
         # Policy: User must have all attributes required by the resource.
-        for key, required_value in resource_attributes.items():
-            user_value = user_attributes.get(key)
-            if user_value != required_value:
-                logger.warning(
-                    f"AACL check failed for user {current_user.email} on '{resource_path}'. "
-                    f"Required: {key}={required_value}, User has: {key}={user_value}"
-                )
-                return jsonify({"error": "Forbidden: You do not have the required attributes to access this resource."}), 403
+        # for key, required_value in resource_attributes.items():
+        #     user_value = user_attributes.get(key)
+        #     if user_value != required_value:
+        #         logger.warning(
+        #             f"AACL check failed for user on '{resource_path}'. "
+        #             f"Required: {key}={required_value}, User has: {key}={user_value}"
+        #         )
+        #         return jsonify({"error": "Forbidden: You do not have the required attributes to access this resource."}), 403
         
         return f(*args, **kwargs)
     return decorated_view
