@@ -22,7 +22,7 @@ export interface Playbook {
   providedIn: 'root'
 })
 export class PlaybookService {
-  private apiUrl = `${environment.apiUrl}/playbooks`;
+  private apiUrl = `${environment.apiUrl}/v1/playbooks`;
   private refreshNeeded$ = new Subject<void>();
 
   constructor(private http: HttpClient, private socketService: SocketIoService) {

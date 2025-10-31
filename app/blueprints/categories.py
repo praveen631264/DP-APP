@@ -4,7 +4,7 @@ from flask import Blueprint, request, jsonify, current_app
 bp = Blueprint('categories_bp', __name__)
 logger = logging.getLogger(__name__)
 
-@bp.route('/categories', methods=['GET'])
+@bp.route('/', methods=['GET'])
 def get_categories():
     """
     Retrieves a list of all defined categories and their configurations.
@@ -19,7 +19,7 @@ def get_categories():
         logger.error(f"Error retrieving categories: {e}", exc_info=True)
         return jsonify({"error": "An internal server error occurred."}), 500
 
-@bp.route('/categories', methods=['POST'])
+@bp.route('/', methods=['POST'])
 def create_category():
     """
     Creates a new category playbook configuration.

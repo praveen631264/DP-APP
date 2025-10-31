@@ -1,13 +1,12 @@
 import logging
 from flask import Blueprint, jsonify, current_app
 from bson import json_util
-from app.security import admin_required
+from flask_security import roles_required
 
 bp = Blueprint('jobs_bp', __name__)
 logger = logging.getLogger(__name__)
 
-@bp.route('/jobs', methods=['GET'])
-@admin_required
+@roles_required('Admin')
 def get_all_jobs():
     """
     Retrieves a list of all background jobs (e.g., training runs) from the registry.
@@ -22,8 +21,7 @@ def get_all_jobs():
         logger.error(f"Error fetching jobs: {e}", exc_info=True)
         return jsonify({"error": "An internal error occurred"}), 500
 
-@bp.route('/jobs/<job_id>/stop', methods=['POST'])
-@admin_required
+@roles_required('Admin')
 def stop_job(job_id):
     """
     Sends a 'STOP' command to a running background job.

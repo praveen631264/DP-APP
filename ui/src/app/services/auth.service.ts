@@ -7,7 +7,11 @@ import { ProfileService, UserProfile } from './profile.service';
 import { ThemeService } from './theme.service';
 
 export interface AuthResponse {
-  message: string;
+  meta: { code: number };
+  response?: {
+    user: { id: string; email: string; };
+    token: string;
+  };
   mfa_required?: boolean;
 }
 
@@ -39,6 +43,12 @@ export class AuthService {
   ) {}
 
   checkAuthStatus(): Observable<boolean> {
+    const token = this.getToken();
+    if (!token) {
+      this.clearUserState();
+      return of(false);
+    }
+
     return this.http.get<UserStatus>(`${this.apiUrl}/status`).pipe(
       map(user => {
         this.updateUserState(user.id, user.email, user.roles);
@@ -55,8 +65,10 @@ export class AuthService {
   login(credentials: { email: string, password: string }): Observable<AuthResponse> {
     return this.http.post<AuthResponse>(`${this.apiUrl}/login`, credentials).pipe(
       tap(response => {
-        if (!response.mfa_required) {
-          this.checkAuthStatus().subscribe();
+        if (response.response?.token) {
+          this.storeToken(response.response.token);
+          const user = response.response.user;
+          this.updateUserState(user.id, user.email, []); // We don't have roles here
         }
       })
     );
@@ -64,8 +76,12 @@ export class AuthService {
 
   loginWithMfa(email: string, totp_code: string): Observable<AuthResponse> {
     return this.http.post<AuthResponse>(`${this.apiUrl}/login/mfa`, { email, totp_code }).pipe(
-      tap(() => {
-        this.checkAuthStatus().subscribe();
+      tap((response) => {
+        if (response.response?.token) {
+          this.storeToken(response.response.token);
+          const user = response.response.user;
+          this.updateUserState(user.id, user.email, []); // We don't have roles here
+        }
       })
     );
   }
@@ -73,8 +89,21 @@ export class AuthService {
   logout(): void {
     this.http.post(`${this.apiUrl}/logout`, {}).subscribe(() => {
       this.clearUserState();
+      this.removeToken();
       this.router.navigate(['/login']);
     });
+  }
+
+  getToken(): string | null {
+    return localStorage.getItem('auth_token');
+  }
+
+  private storeToken(token: string): void {
+    localStorage.setItem('auth_token', token);
+  }
+
+  private removeToken(): void {
+    localStorage.removeItem('auth_token');
   }
 
   private initializeUserSession(): void {

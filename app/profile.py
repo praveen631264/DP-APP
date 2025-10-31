@@ -8,7 +8,7 @@ import io
 profile_bp = Blueprint('profile_bp', __name__)
 logger = logging.getLogger(__name__)
 
-@profile_bp.route('/profile', methods=['GET'])
+@profile_bp.route('/', methods=['GET'])
 @auth_required('token')
 def get_profile():
     """
@@ -23,7 +23,7 @@ def get_profile():
     }
     return jsonify(user_data)
 
-@profile_bp.route('/profile/preferences', methods=['PUT'])
+@profile_bp.route('/preferences', methods=['PUT'])
 @auth_required('token')
 def update_preferences():
     """
@@ -44,7 +44,7 @@ def update_preferences():
         logger.error(f"Error updating preferences for user {current_user.email}: {e}", exc_info=True)
         return jsonify({"error": "An internal server error occurred"}), 500
 
-@profile_bp.route('/profile/change-password', methods=['POST'])
+@profile_bp.route('/change-password', methods=['POST'])
 @auth_required('token')
 def change_password():
     """
@@ -71,7 +71,7 @@ def change_password():
         logger.error(f"Error changing password for user {current_user.email}: {e}", exc_info=True)
         return jsonify({"error": "An internal server error occurred"}), 500
 
-@profile_bp.route('/profile/mfa/setup', methods=['POST'])
+@profile_bp.route('/mfa/setup', methods=['POST'])
 @auth_required('token')
 def mfa_setup():
     """
@@ -98,7 +98,7 @@ def mfa_setup():
         logger.error(f"Error during MFA setup for user {current_user.email}: {e}", exc_info=True)
         return jsonify({"error": "An internal server error occurred"}), 500
 
-@profile_bp.route('/profile/mfa/verify', methods=['POST'])
+@profile_bp.route('/mfa/verify', methods=['POST'])
 @auth_required('token')
 def mfa_verify():
     """
@@ -125,7 +125,7 @@ def mfa_verify():
     logger.info(f"MFA successfully enabled for user {current_user.email}")
     return jsonify({"message": "MFA has been enabled successfully."}), 200
 
-@profile_bp.route('/profile/mfa/disable', methods=['POST'])
+@profile_bp.route('/mfa/disable', methods=['POST'])
 @auth_required('token')
 def mfa_disable():
     """

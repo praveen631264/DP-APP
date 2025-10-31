@@ -11,7 +11,7 @@ export const adminGuard: CanActivateFn = (route, state) => {
   // and check their roles.
   return authService.getCurrentUser().pipe(
     map(user => {
-      if (user && user.roles.includes('admin')) {
+      if (user && user.roles.includes('Admin')) {
         return true; // Allow access
       }
       return router.createUrlTree(['/dashboard']); // Redirect non-admins

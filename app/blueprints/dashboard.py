@@ -7,7 +7,7 @@ from app.models import User
 bp = Blueprint('dashboard_bp', __name__)
 logger = logging.getLogger(__name__)
 
-@bp.route('/dashboard/stats', methods=['GET'])
+@bp.route('/stats', methods=['GET'])
 @auth_required('token')
 def get_dashboard_stats():
     """

@@ -5,24 +5,6 @@ from flask_security import auth_required, current_user
 
 logger = logging.getLogger(__name__)
 
-def admin_required(f):
-    """
-    A decorator to protect routes that require administrative privileges.
-    It checks for a valid 'X-Admin-API-Key' in the request headers.
-    """
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        admin_api_key = current_app.config.get('ADMIN_API_KEY')
-        if not admin_api_key:
-            # If no key is configured, deny access to be safe by default.
-            return jsonify({"error": "Administrator access is not configured on the server."}), 500
-
-        provided_key = request.headers.get('X-Admin-API-Key')
-        if provided_key != admin_api_key:
-            return jsonify({"error": "Unauthorized: A valid admin API key is required."}), 401
-        
-        return f(*args, **kwargs)
-    return decorated_function
 
 def attribute_required(f):
     """

@@ -2,6 +2,7 @@ import { Routes } from '@angular/router';
 import { LayoutComponent } from './layout/layout.component';
 import { adminGuard } from './auth.guard';
 import { LoginComponent } from './login/login.component';
+import { loginGuard } from './login.guard';
 import { SettingsComponent } from './settings/settings.component';
 import { UserManagementComponent } from './user-management/user-management.component';
 import { AuditLogComponent } from './audit-log/audit-log.component';
@@ -10,7 +11,7 @@ import { PlaybookListComponent } from './playbook-list/playbook-list.component';
 import { PlaybookEditorComponent } from './playbook-editor/playbook-editor.component';
 
 export const routes: Routes = [
-  { path: 'login', component: LoginComponent },
+  { path: 'login', component: LoginComponent, canActivate: [loginGuard] },
   {
     path: '',
     component: LayoutComponent,

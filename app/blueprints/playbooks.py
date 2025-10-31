@@ -4,7 +4,7 @@ from bson import ObjectId
 from pydantic import BaseModel, ValidationError
 from typing import List, Dict, Any, Optional
 
-from app.security import admin_required
+
 
 
 bp = Blueprint('playbooks_bp', __name__)

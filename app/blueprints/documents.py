@@ -7,6 +7,7 @@ from app.orchestrator_worker import orchestrator_agent_task
 from io import BytesIO
 from app.utils.json_encoder import JSONEncoder
 from bson import ObjectId
+from app import database
 
 bp = Blueprint('documents_bp', __name__)
 logger = logging.getLogger(__name__)
@@ -53,7 +54,7 @@ def upload_document():
     else:
         return jsonify({"error": "File type not allowed"}), 400
 
-@bp.route('/documents', methods=['GET'])
+@bp.route('/', methods=['GET'])
 def get_documents():
     """
     Retrieves a paginated, sorted, and filtered list of documents.
@@ -74,7 +75,7 @@ def get_documents():
         # Collect all other query parameters as filters
         filters = {k: v for k, v in request.args.items() if k not in ['page', 'limit', 'sort_by', 'sort_order']}
 
-        documents, total = db.get_paginated_documents(page, limit, sort_by, sort_order, filters)
+        documents, total = database.get_paginated_documents(page, limit, sort_by, sort_order, filters)
         return jsonify({"items": documents, "total": total, "page": page, "limit": limit}), 200
     except Exception as e:
         logger.error(f"Error fetching documents: {e}", exc_info=True)
@@ -256,7 +257,7 @@ def get_document_history(doc_id):
         if not db.get_document(doc_id):
             return jsonify({"error": "Document not found"}), 404
 
-        history = list(db.get_document_audit_trail(doc_id))
+        history = list(database.get_document_audit_trail(doc_id))
         
         # Use the custom JSONEncoder to handle ObjectId and datetime
         return current_app.response_class(JSONEncoder().encode(history), mimetype='application/json')

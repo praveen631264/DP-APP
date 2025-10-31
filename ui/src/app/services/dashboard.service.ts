@@ -16,7 +16,7 @@ export interface DashboardStats {
   providedIn: 'root'
 })
 export class DashboardService {
-  private apiUrl = `${environment.apiUrl}/dashboard/stats`;
+  private apiUrl = `${environment.apiUrl}/v1/dashboard/stats`;
 
   private refreshNeeded$ = new Subject<void>();
 

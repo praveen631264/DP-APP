@@ -27,7 +27,7 @@ class AuditLog(mongoengine.EmbeddedDocument):
 
 class Playbook(mongoengine.Document):
     name = mongoengine.StringField(required=True, unique=True)
-    category = mongoengine.StringField(required=True, unique=True)
+    category = mongoengine.StringField(required=True)
     description = mongoengine.StringField()
     steps = mongoengine.ListField(mongoengine.DictField())
     final_status = mongoengine.StringField(default='Processed')
