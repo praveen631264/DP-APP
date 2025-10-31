@@ -1,8 +1,8 @@
 import { Routes } from '@angular/router';
 import { LayoutComponent } from './layout/layout.component';
-import { adminGuard } from './auth.guard';
+import { authGuard, adminGuard } from './auth.guard';
 import { LoginComponent } from './login/login.component';
-import { loginGuard } from './login.guard';
+import { LoginGuard } from './login.guard';
 import { SettingsComponent } from './settings/settings.component';
 import { UserManagementComponent } from './user-management/user-management.component';
 import { AuditLogComponent } from './audit-log/audit-log.component';
@@ -11,10 +11,11 @@ import { PlaybookListComponent } from './playbook-list/playbook-list.component';
 import { PlaybookEditorComponent } from './playbook-editor/playbook-editor.component';
 
 export const routes: Routes = [
-  { path: 'login', component: LoginComponent, canActivate: [loginGuard] },
+  { path: 'login', component: LoginComponent, canActivate: [LoginGuard] },
   {
     path: '',
     component: LayoutComponent,
+    canActivate: [authGuard],
     children: [
       { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
       {
