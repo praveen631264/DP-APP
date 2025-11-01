@@ -2,23 +2,42 @@
 import logging
 from flask import Blueprint, request, jsonify, current_app
 from bson import ObjectId
-from pydantic import BaseModel, ValidationError, Field
-from typing import List, Dict, Any, Optional
-
-# Import the new, specific step models
-from .playbook_step_models import PlaybookStepModels
+from pydantic import BaseModel, Field, ValidationError
+from typing import List, Dict, Any, Optional, Literal, Union
 
 bp = Blueprint('playbooks_bp', __name__)
 logger = logging.getLogger(__name__)
 
 # --- Pydantic Models for Validation ---
 
+# Base model for common step fields
+class BaseStep(BaseModel):
+    name: str
+    description: Optional[str] = None
+
+# Specific model for the 'LLM_PROMPT' step
+class LLMPromptStepModel(BaseStep):
+    type: Literal['LLM_PROMPT']
+    prompt_template: str
+    output_key: str
+
+# Specific model for the 'VECTOR_SEARCH' step
+class SearchStepModel(BaseStep):
+    type: Literal['VECTOR_SEARCH']
+    query_template: str
+    max_results: int = 3
+
+# Create a Discriminated Union of the specific step models.
+# The 'type' field is the discriminator. Pydantic will use it to determine
+# which model to use for validation.
+PlaybookStepModels = Union[LLMPrompStepModel, SearchStepModel]
+
 # The main Playbook model now uses a list of the discriminated union of step models.
 # This enforces that every step in the list conforms to one of the defined step schemas.
 class PlaybookModel(BaseModel):
     name: str
     category_name: str
-    steps: List[PlaybookStepModels] # Use the Union of specific models
+    steps: List[PlaybookStepModels] = Field(..., discriminator='type')
     final_status: Optional[str] = 'Processed'
 
 @bp.route('/playbooks', methods=['POST'])
