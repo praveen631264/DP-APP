@@ -4,7 +4,6 @@ from langchain.tools import tool
 from flask import current_app
 from app.processing_dispatcher import (
     extract_text_task,
-    route_to_category_task,
     chunk_and_embed_task,
 )
 from app.playbook_worker import execute_playbook_task
@@ -32,7 +31,6 @@ def dispatch_full_processing_pipeline(doc_id: str) -> str:
     # BOMB FIX: Added the missing execute_playbook_task to complete the pipeline.
     full_chain = chain(
         extract_text_task.s(doc_id),
-        route_to_category_task.s(),
         chunk_and_embed_task.s(),
         execute_playbook_task.s() # Assumes the doc_id is passed through the chain results.
     )
@@ -73,7 +71,6 @@ def human_override_and_dispatch(doc_id: str, override_action: str) -> str:
         # BOMB FIX: Added the missing execute_playbook_task to the reprocessing chain.
         full_chain = chain(
             extract_text_task.s(doc_id),
-            route_to_category_task.s(),
             chunk_and_embed_task.s(),
             execute_playbook_task.s()
         )
