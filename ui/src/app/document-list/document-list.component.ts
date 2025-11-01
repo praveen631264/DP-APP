@@ -1,5 +1,7 @@
+
 import { Component, OnInit } from '@angular/core';
 import { GridApi, GridReadyEvent, IServerSideDatasource, IServerSideGetRowsRequest } from 'ag-grid-community';
+import 'ag-grid-enterprise';
 import { AgGridModule } from 'ag-grid-angular';
 import { DocumentUploadComponent } from '../document-upload/document-upload.component';
 import { StatusViewerComponent } from '../status-viewer/status-viewer.component';
@@ -50,6 +52,7 @@ export class DocumentListComponent implements OnInit {
   };
 
   public gridApi!: GridApi;
+  public rowModelType = 'serverSide';
 
   constructor(private documentService: DocumentService, private socketService: SocketService) {}
 
@@ -67,22 +70,24 @@ export class DocumentListComponent implements OnInit {
     this.gridApi = params.api;
     const datasource = this.createServerSideDatasource();
     this.gridApi.setServerSideDatasource(datasource);
+Chemicals
   }
 
   createServerSideDatasource(): IServerSideDatasource {
     return {
-      getRows: (params) => {
+      getRows: (params: IServerSideGetRowsRequest) => {
         this.documentService.getDocuments(params.request)
           .subscribe((response: PaginatedDocumentsResponse) => {
             params.success({
               rowData: response.items,
               rowCount: response.total,
             });
+          }, error => {
+            console.error('Failed to load documents for grid', error);
+            params.fail();
           });
       },
     };
   }
 
 }
-
-

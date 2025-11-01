@@ -46,7 +46,10 @@ def get_dashboard_stats():
         docs_over_time = list(Document.objects.aggregate(docs_over_time_pipeline))
 
         # Pending users
-        pending_users = User.objects(approved=False).count()
+        if hasattr(User, 'active'):
+            pending_users = User.objects(active=False).count()
+        else:
+            pending_users = 0
 
         stats = {
             "total_documents": total_docs,
