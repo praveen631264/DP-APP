@@ -2,7 +2,7 @@ import logging
 from app.celery_worker import celery
 from app.blueprints.stream import publish_status_update
 from app.utils.doc_utils import extract_text, split_text_into_chunks, route_to_category
-from app.models import Document, DocumentChunk
+from app.models import Document, DocumentChunk, Category
 from app.ai_models import get_llm
 from bson import ObjectId
 from celery import chain
@@ -42,8 +42,9 @@ def extract_text_task(doc_id: str):
 
 @celery.task(name='route_to_category_task')
 def route_to_category_task(doc_id: str):
-    """Routes a document to a category based on its text content."""
-    if not doc_id: return
+    """Routes a document to a category, falling back to 'Default'."""
+    if not doc_id:
+        return
     logger.info(f"Starting category routing for document {doc_id}.")
     doc = Document.objects(id=doc_id).first()
     if not doc or not doc.text:
@@ -54,13 +55,23 @@ def route_to_category_task(doc_id: str):
         publish_status_update(doc_id, "Processing", "Step 2/5: Categorizing document...")
         llm = get_llm()
         
-        all_categories = Document.objects.distinct('category')
-        all_categories = [cat for cat in all_categories if cat]
-        
-        category = route_to_category(doc.text, all_categories, llm)
-        doc.category = category
+        # Fetch all categories except 'Default'
+        categories = Category.objects(name__ne="Default")
+        category_names = [cat.name for cat in categories]
+
+        # Attempt to find a specific category match
+        matched_category = route_to_category(doc.text, category_names, llm)
+
+        # If no specific category is matched, assign it to the 'Default' category
+        if not matched_category:
+            final_category = "Default"
+            logger.info(f"No specific category matched for doc {doc_id}. Assigning to 'Default'.")
+        else:
+            final_category = matched_category
+            logger.info(f"Document {doc_id} routed to specific category: '{final_category}'.")
+
+        doc.category_name = final_category
         doc.save()
-        logger.info(f"Document {doc_id} routed to category: '{category}'.")
         return doc_id
     except Exception as e:
         logger.error(f"Error in route_to_category_task for doc {doc_id}: {e}", exc_info=True)

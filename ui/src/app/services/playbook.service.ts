@@ -1,13 +1,14 @@
-import { Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { Observable, Subject } from 'rxjs';
-import { SocketIoService } from './socket-io.service';
-import { environment } from '../../environments/environment';
 
+import { Injectable } from '@angular/core';
+import { HttpClient, HttpParams } from '@angular/common/http';
+import { Observable } from 'rxjs';
+
+// Define the Playbook model based on your backend
 export interface PlaybookStep {
   type: string;
   name: string;
-  [key: string]: any;
+  on_failure?: any;
+  [key: string]: any; // Allow other dynamic properties
 }
 
 export interface Playbook {
@@ -16,54 +17,43 @@ export interface Playbook {
   category_name: string;
   steps: PlaybookStep[];
   final_status?: string;
+  created_at?: string;
 }
 
 @Injectable({
   providedIn: 'root'
 })
 export class PlaybookService {
-  private apiUrl = `${environment.apiUrl}/v1/playbooks`;
-  private refreshNeeded$ = new Subject<void>();
+  private apiUrl = '/api/v1/playbooks';
 
-  constructor(private http: HttpClient, private socketService: SocketIoService) {
-    this.socketService.listen('playbook_updated').subscribe(() => {
-      this.refreshNeeded$.next();
-    });
+  constructor(private http: HttpClient) { }
 
-    this.socketService.listen('playbook_deleted').subscribe(() => {
-      this.refreshNeeded$.next();
-    });
+  // Create a new playbook
+  createPlaybook(playbook: Playbook): Observable<Playbook> {
+    return this.http.post<Playbook>(this.apiUrl, playbook);
   }
 
-  getPlaybooks(category_name?: string): Observable<Playbook[]> {
-    let url = this.apiUrl;
-    if (category_name) {
-      url += `?category_name=${category_name}`;
+  // Get all playbooks, optionally filtered by category
+  getPlaybooks(categoryName?: string): Observable<Playbook[]> {
+    let params = new HttpParams();
+    if (categoryName) {
+      params = params.set('category_name', categoryName);
     }
-    return this.http.get<Playbook[]>(url);
+    return this.http.get<Playbook[]>(this.apiUrl, { params });
   }
 
+  // Get a single playbook by its ID
   getPlaybook(id: string): Observable<Playbook> {
     return this.http.get<Playbook>(`${this.apiUrl}/${id}`);
   }
 
-  createPlaybook(playbook: Playbook): Observable<any> {
-    return this.http.post(this.apiUrl, playbook);
+  // Update a playbook
+  updatePlaybook(id: string, playbook: Playbook): Observable<Playbook> {
+    return this.http.put<Playbook>(`${this.apiUrl}/${id}`, playbook);
   }
 
-  updatePlaybook(id: string, playbook: Playbook): Observable<any> {
-    return this.http.put(`${this.apiUrl}/${id}`, playbook);
-  }
-
-  deletePlaybook(id: string): void {
-    this.socketService.emit('delete_playbook', { id });
-  }
-
-  getStepMetadata(): Observable<any> {
-    return this.http.get(`${this.apiUrl}/steps`);
-  }
-
-  onRefreshNeeded(): Observable<void> {
-    return this.refreshNeeded$.asObservable();
+  // Delete a playbook
+  deletePlaybook(id: string): Observable<{ message: string }> {
+    return this.http.delete<{ message: string }>(`${this.apiUrl}/${id}`);
   }
 }

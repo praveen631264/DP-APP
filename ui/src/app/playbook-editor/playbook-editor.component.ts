@@ -1,193 +1,178 @@
-import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
-import { ActivatedRoute, Router } from '@angular/router';
-import { FormBuilder, FormGroup, FormArray, Validators } from '@angular/forms';
-import { Playbook, PlaybookService, PlaybookStep } from '../services/playbook.service';
+
+import { Component, Inject } from '@angular/core';
+import { FormBuilder, FormGroup, FormArray, Validators, ReactiveFormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
-import { ReactiveFormsModule } from '@angular/forms';
-import { NgxGraphModule } from '@swimlane/ngx-graph';
-import { Subject } from 'rxjs';
+
+// Angular Material Modules
+import { MatDialogModule, MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
+import { MatButtonModule } from '@angular/material/button';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatSelectModule } from '@angular/material/select';
+import { MatDividerModule } from '@angular/material/divider';
+import { MatExpansionModule } from '@angular/material/expansion';
+import { TextFieldModule } from '@angular/cdk/text-field';
+
+import { Playbook } from '../services/playbook.service';
+
+// Define the structure for each step's configuration
+interface StepField {
+  name: string;
+  type: 'text' | 'textarea';
+  label: string;
+  defaultValue?: any;
+}
+
+interface StepConfig {
+  [key: string]: {
+    name: string;
+    fields: StepField[];
+  };
+}
+
+// Configuration object for all available step types and their fields
+const STEP_CONFIG: StepConfig = {
+  llm_prompt_step: {
+    name: 'LLM Prompt',
+    fields: [
+      { name: 'prompt', type: 'textarea', label: 'Prompt Template', defaultValue: '' },
+      { name: 'output_variable', type: 'text', label: 'Output Variable Name', defaultValue: 'llm_output' }
+    ]
+  },
+  notification_step: {
+    name: 'Email Notification',
+    fields: [
+      { name: 'recipients', type: 'text', label: 'Recipients (comma-separated)', defaultValue: '' },
+      { name: 'subject', type: 'text', label: 'Subject', defaultValue: '' },
+      { name: 'body', type: 'textarea', label: 'Body Template', defaultValue: '' }
+    ]
+  },
+  search_step: {
+    name: 'Search',
+    fields: [
+      { name: 'query', type: 'text', label: 'Search Query Template', defaultValue: '' },
+      { name: 'output_variable', type: 'text', label: 'Output Variable Name', defaultValue: 'search_results' }
+    ]
+  },
+  conditional_step: {
+      name: 'Conditional (If/Else)',
+      fields: [
+          { name: 'condition', type: 'textarea', label: 'Condition (e.g., {{variable}} == "value")', defaultValue: ''}
+      ]
+  },
+  for_each_step: {
+      name: 'For Each Loop',
+      fields: [
+          { name: 'items', type: 'text', label: 'Items Variable (e.g., {{search_results}})', defaultValue: ''},
+          { name: 'loop_variable', type: 'text', label: 'Loop Variable Name', defaultValue: 'item'}
+      ]
+  },
+  update_document_step: {
+      name: 'Update Document',
+      fields: [
+          { name: 'field', type: 'text', label: 'Field to Update', defaultValue: '' },
+          { name: 'value', type: 'textarea', label: 'Value Template', defaultValue: ''}
+      ]
+  },
+  api_call_step: {
+    name: 'API Call',
+    fields: [
+        { name: 'url', type: 'text', label: 'URL Template', defaultValue: '' },
+        { name: 'method', type: 'text', label: 'Method (GET, POST, etc.)', defaultValue: 'GET' },
+        { name: 'payload', type: 'textarea', label: 'Payload (JSON Template)', defaultValue: '{}' },
+        { name: 'output_variable', type: 'text', label: 'Output Variable Name', defaultValue: 'api_response' }
+    ]
+  }
+};
 
 @Component({
   selector: 'app-playbook-editor',
-  templateUrl: './playbook-editor.component.html',
-  styleUrls: ['./playbook-editor.component.scss'],
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, NgxGraphModule]
+  imports: [
+    CommonModule,
+    ReactiveFormsModule,
+    MatDialogModule,
+    MatButtonModule,
+    MatFormFieldModule,
+    MatInputModule,
+    MatSelectModule,
+    MatDividerModule,
+    MatExpansionModule,
+    TextFieldModule
+  ],
+  templateUrl: './playbook-editor.component.html',
+  styleUrls: ['./playbook-editor.component.scss']
 })
-export class PlaybookEditorComponent implements OnInit {
-
+export class PlaybookEditorComponent {
   playbookForm: FormGroup;
-  isNewPlaybook = true;
-  playbookId: string | null = null;
-  stepMetadata: any = {};
-
-  // Graph properties
-  nodes: any[] = [];
-  links: any[] = [];
-  update$: Subject<boolean> = new Subject();
-
-  selectedStepIndex: number | null = null;
-
-  stepIconMap: { [key: string]: string } = {
-    llm_prompt: '🤖',
-    search: '🔍',
-    api_call: '📞',
-    conditional: '🔀',
-    for_each: '🔁',
-    parallel: '⏯️',
-    update_document: '📝',
-    tool_using_llm: '🛠️',
-    default: '⚙️'
-  };
-
-  stepColorMap: { [key: string]: string } = {
-    llm_prompt: '#cce5ff',
-    search: '#d4edda',
-    api_call: '#f8d7da',
-    conditional: '#fff3cd',
-    for_each: '#e2e3e5',
-    parallel: '#d1ecf1',
-    update_document: '#d4edda',
-    tool_using_llm: '#f5c6cb',
-    default: '#f8f9fa'
-  };
-
-  // Helper to use Object.keys in the template
-  objectKeys = Object.keys;
+  stepConfig = STEP_CONFIG;
+  availableStepTypes = Object.keys(this.stepConfig);
 
   constructor(
-    private fb: FormBuilder,
-    private route: ActivatedRoute,
-    private router: Router,
-    private playbookService: PlaybookService,
-    private cd: ChangeDetectorRef
+    public dialogRef: MatDialogRef<PlaybookEditorComponent>,
+    @Inject(MAT_DIALOG_DATA) public data: { playbook: Playbook },
+    private fb: FormBuilder
   ) {
+    // Initialize the main form group
     this.playbookForm = this.fb.group({
-      name: ['', Validators.required],
-      category_name: ['', Validators.required],
-      final_status: ['Processed'],
+      name: [data.playbook?.name || '', Validators.required],
+      category_name: [data.playbook?.category_name || '', Validators.required],
       steps: this.fb.array([])
     });
 
-    // When the steps change, update the graph
-    this.steps.valueChanges.subscribe(() => this.updateGraph());
-  }
-
-  ngOnInit(): void {
-    this.playbookId = this.route.snapshot.paramMap.get('id');
-    this.isNewPlaybook = this.playbookId === 'new';
-
-    this.playbookService.getStepMetadata().subscribe(data => {
-      this.stepMetadata = data;
-      if (!this.isNewPlaybook && this.playbookId) {
-        this.loadPlaybook(this.playbookId);
-      }
-      this.cd.markForCheck(); // Manually trigger change detection
-    });
-  }
-
-  loadPlaybook(id: string): void {
-    this.playbookService.getPlaybook(id).subscribe(playbook => {
-      this.playbookForm.patchValue({ 
-        name: playbook.name, 
-        category_name: playbook.category_name,
-        final_status: playbook.final_status
+    // If we are editing a playbook, populate the steps array
+    if (data.playbook?.steps) {
+      data.playbook.steps.forEach(step => {
+        this.steps.push(this.createStepGroup(step.type, step));
       });
-      playbook.steps.forEach(step => this.addStep(step.type, step, false));
-      this.updateGraph();
-    });
+    }
   }
 
+  // Getter for easy access to the steps FormArray
   get steps(): FormArray {
     return this.playbookForm.get('steps') as FormArray;
   }
 
-  addStep(stepType: string, existingStep?: PlaybookStep, updateGraph = true): void {
-    const stepMeta = this.stepMetadata[stepType];
-    if (!stepMeta) return;
+  createStepGroup(stepType: string, stepData: any = null): FormGroup {
+    const config = this.stepConfig[stepType];
+    const group: { [key: string]: any; } = {
+      name: [stepData?.name || 'New Step', Validators.required],
+      type: [stepType, Validators.required]
+    };
 
-    const stepGroup = this.fb.group({
-      type: [stepType, Validators.required],
-      name: [existingStep?.name || stepMeta.name, Validators.required],
-    });
-
-    stepMeta.params.forEach((param: any) => {
-      const value = existingStep ? existingStep[param.name] : param.default;
-      const validators = param.required ? [Validators.required] : [];
-      stepGroup.addControl(param.name, this.fb.control(value, validators));
-    });
-
-    this.steps.push(stepGroup);
-    if (updateGraph) {
-      this.updateGraph();
+    if (config) {
+      config.fields.forEach(field => {
+        group[field.name] = [stepData?.[field.name] ?? field.defaultValue];
+      });
+    } else {
+        if(stepData) {
+            Object.keys(stepData).forEach(key => {
+                if(!group[key]) {
+                    group[key] = [stepData[key]];
+                }
+            })
+        }
     }
+
+    return this.fb.group(group);
+  }
+
+  addStep(stepType: string): void {
+    if (!stepType) return;
+    this.steps.push(this.createStepGroup(stepType));
   }
 
   removeStep(index: number): void {
     this.steps.removeAt(index);
-    this.selectedStepIndex = null;
-    this.updateGraph();
   }
 
-  getStepParams(stepType: string): any[] {
-    return this.stepMetadata[stepType]?.params || [];
+  onNoClick(): void {
+    this.dialogRef.close();
   }
 
-  updateGraph(): void {
-    const nodes = [];
-    const links = [];
-    for (let i = 0; i < this.steps.length; i++) {
-      const step = this.steps.at(i).value;
-      nodes.push({
-        id: `step_${i}`,
-        label: step.name,
-        data: {
-          index: i,
-          icon: this.stepIconMap[step.type] || this.stepIconMap['default'],
-          color: this.stepColorMap[step.type] || this.stepColorMap['default']
-        }
-      });
-      if (i > 0) {
-        links.push({
-          id: `link_${i-1}_${i}`,
-          source: `step_${i-1}`,
-          target: `step_${i}`
-        });
-      }
-    }
-    this.nodes = nodes;
-    this.links = links;
-    this.update$.next(true);
-    this.cd.detectChanges();
-  }
-
-  onNodeClick(event: any): void {
-    this.selectedStepIndex = event.data.index;
-  }
-
-  closeStepEditor(): void {
-    this.selectedStepIndex = null;
-  }
-
-  get selectedStepFormGroup(): FormGroup {
-    if (this.selectedStepIndex === null) {
-      return null as any;
-    }
-    return this.steps.at(this.selectedStepIndex) as FormGroup;
-  }
-
-  savePlaybook(): void {
+  onSave(): void {
     if (this.playbookForm.valid) {
-      const playbookData = this.playbookForm.value as Playbook;
-      if (this.isNewPlaybook) {
-        this.playbookService.createPlaybook(playbookData).subscribe(() => {
-          this.router.navigate(['/playbooks']);
-        });
-      } else if (this.playbookId) {
-        this.playbookService.updatePlaybook(this.playbookId, playbookData).subscribe(() => {
-          this.router.navigate(['/playbooks']);
-        });
-      }
+      this.dialogRef.close(this.playbookForm.value);
     }
   }
 }

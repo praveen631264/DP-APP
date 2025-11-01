@@ -2,7 +2,7 @@ import logging
 from flask import Blueprint, jsonify, current_app
 from flask_security import auth_required
 import datetime
-from app.models import User
+from app.models import User, Document
 
 bp = Blueprint('dashboard_bp', __name__)
 logger = logging.getLogger(__name__)
@@ -13,23 +13,22 @@ def get_dashboard_stats():
     """
     Retrieves aggregated statistics for the main dashboard.
     """
-    db = current_app.db
     try:
         # Total documents
-        total_docs = db.documents.count_documents({})
+        total_docs = Document.objects.count()
 
         # Documents by status
         status_pipeline = [
             {"$group": {"_id": "$status", "count": {"$sum": 1}}}
         ]
-        status_counts = list(db.documents.aggregate(status_pipeline))
+        status_counts = list(Document.objects.aggregate(status_pipeline))
 
         # Documents by category
         category_pipeline = [
             {"$match": {"category": {"$ne": "Uncategorized"}}},
             {"$group": {"_id": "$category", "count": {"$sum": 1}}}
         ]
-        category_counts = list(db.documents.aggregate(category_pipeline))
+        category_counts = list(Document.objects.aggregate(category_pipeline))
 
         # Documents processed over the last 30 days
         thirty_days_ago = datetime.datetime.utcnow() - datetime.timedelta(days=30)
@@ -44,7 +43,7 @@ def get_dashboard_stats():
             {"$sort": {"_id": 1}},
             {"$project": {"name": "$_id", "value": "$count", "_id": 0}}
         ]
-        docs_over_time = list(db.documents.aggregate(docs_over_time_pipeline))
+        docs_over_time = list(Document.objects.aggregate(docs_over_time_pipeline))
 
         # Pending users
         pending_users = User.objects(approved=False).count()

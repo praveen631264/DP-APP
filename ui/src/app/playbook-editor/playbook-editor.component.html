@@ -1,50 +1,75 @@
-<div class="editor-container">
-  <div class="sidebar">
-    <h2>Available Steps</h2>
-    <ul>
-      <li *ngFor="let stepType of objectKeys(stepMetadata)" (click)="addStep(stepType)">
-        {{ stepMetadata[stepType].name }}
-      </li>
-    </ul>
-  </div>
 
-  <div class="main-content">
-    <form [formGroup]="playbookForm" (ngSubmit)="savePlaybook()">
-      <div class="playbook-meta">
-        <input formControlName="name" placeholder="Playbook Name">
-        <input formControlName="category_name" placeholder="Category">
-        <input formControlName="final_status" placeholder="Final Status">
-        <button type="submit" [disabled]="!playbookForm.valid" class="save-btn">Save Playbook</button>
-      </div>
+<h1 mat-dialog-title>{{ data.playbook ? 'Edit' : 'Create' }} Playbook</h1>
 
-      <div class="graph-container">
-        <ngx-graph
-          class="chart-container"
-          [links]="links"
-          [nodes]="nodes"
-          [update$]="update$"
-          (select)="onNodeClick($event)"
-        >
-        </ngx-graph>
-      </div>
-    </form>
-  </div>
+<div mat-dialog-content class="dialog-content">
+  <form [formGroup]="playbookForm">
+    <!-- Playbook Name and Category -->
+    <mat-form-field appearance="outline" class="full-width">
+      <mat-label>Playbook Name</mat-label>
+      <input matInput formControlName="name" required>
+    </mat-form-field>
 
-  <div class="step-editor-sidebar" [class.visible]="selectedStepIndex !== null">
-    <ng-container *ngIf="selectedStepIndex !== null">
-      <div [formGroup]="selectedStepFormGroup">
-        <div class="sidebar-header">
-          <h3>Edit: {{ selectedStepFormGroup.value.name }}</h3>
-          <button (click)="closeStepEditor()" class="close-btn">&times;</button>
+    <mat-form-field appearance="outline" class="full-width">
+      <mat-label>Category Name</mat-label>
+      <input matInput formControlName="category_name" required>
+    </mat-form-field>
+
+    <mat-divider></mat-divider>
+
+    <!-- Add New Step Section -->
+    <div class="add-step-section">
+      <mat-form-field appearance="outline">
+        <mat-label>Select Step Type</mat-label>
+        <mat-select #stepTypeSelect>
+          <mat-option *ngFor="let stepType of availableStepTypes" [value]="stepType">
+            {{ stepConfig[stepType].name }}
+          </mat-option>
+        </mat-select>
+      </mat-form-field>
+      <button mat-raised-button color="primary" (click)="addStep(stepTypeSelect.value)">Add Step</button>
+    </div>
+
+    <h3 *ngIf="steps.controls.length > 0">Steps</h3>
+
+    <!-- Steps Array -->
+    <mat-accordion formArrayName="steps" class="steps-accordion">
+      <mat-expansion-panel *ngFor="let step of steps.controls; let i=index" [formGroupName]="i" class="step-panel">
+        <mat-expansion-panel-header>
+          <mat-panel-title>
+            Step {{i + 1}}: {{ stepConfig[step.get('type')!.value].name || 'Unknown Step' }} - {{ step.get('name')!.value }}
+          </mat-panel-title>
+        </mat-expansion-panel-header>
+
+        <!-- Common Step Fields -->
+        <div class="step-form-fields">
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Step Name</mat-label>
+            <input matInput formControlName="name" required>
+          </mat-form-field>
+
+          <!-- Dynamic Fields Based on Step Type -->
+          <ng-container [ngSwitch]="step.get('type')!.value">
+            <ng-container *ngFor="let field of stepConfig[step.get('type')!.value].fields">
+              <mat-form-field appearance="outline" class="full-width" *ngIf="field.type === 'text'">
+                <mat-label>{{ field.label }}</mat-label>
+                <input matInput [formControlName]="field.name">
+              </mat-form-field>
+              <mat-form-field appearance="outline" class="full-width" *ngIf="field.type === 'textarea'">
+                <mat-label>{{ field.label }}</mat-label>
+                <textarea matInput [formControlName]="field.name" cdkTextareaAutosize cdkAutosizeMinRows="3"></textarea>
+              </mat-form-field>
+            </ng-container>
+          </ng-container>
         </div>
-        <div class="step-params">
-          <div *ngFor="let param of getStepParams(steps.controls[selectedStepIndex].value.type)" class="form-field">
-            <label>{{ param.name }}</label>
-            <input [formControlName]="param.name" [type]="param.type || 'text'">
-          </div>
-        </div>
-        <button (click)="removeStep(selectedStepIndex)" type="button" class="remove-step-btn">Remove Step</button>
-      </div>
-    </ng-container>
-  </div>
+
+        <button mat-stroked-button color="warn" (click)="removeStep(i)">Remove Step</button>
+
+      </mat-expansion-panel>
+    </mat-accordion>
+  </form>
+</div>
+
+<div mat-dialog-actions align="end">
+  <button mat-button (click)="onNoClick()">Cancel</button>
+  <button mat-raised-button color="primary" (click)="onSave()" [disabled]="!playbookForm.valid">Save</button>
 </div>

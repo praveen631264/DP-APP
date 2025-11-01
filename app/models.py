@@ -25,11 +25,16 @@ class AuditLog(mongoengine.EmbeddedDocument):
     user_email = mongoengine.StringField()
     details = mongoengine.DictField()
 
+class PlaybookStep(mongoengine.EmbeddedDocument):
+    type = mongoengine.StringField(required=True)
+    name = mongoengine.StringField(required=True)
+    on_failure = mongoengine.DictField()
+    # Allow dynamic fields by not being strict
+
 class Playbook(mongoengine.Document):
-    name = mongoengine.StringField(required=True, unique=True)
-    category = mongoengine.StringField(required=True)
-    description = mongoengine.StringField()
-    steps = mongoengine.ListField(mongoengine.DictField())
+    name = mongoengine.StringField(required=True)
+    category_name = mongoengine.StringField(required=True)
+    steps = mongoengine.ListField(mongoengine.EmbeddedDocumentField(PlaybookStep))
     final_status = mongoengine.StringField(default='Processed')
     created_at = mongoengine.DateTimeField(default=datetime.datetime.utcnow)
     meta = {'collection': 'playbooks'}

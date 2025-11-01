@@ -1,38 +1,35 @@
+
 import logging
 from flask import Blueprint, request, jsonify, current_app
 from bson import ObjectId
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, ValidationError, Field
 from typing import List, Dict, Any, Optional
 
-
-
+# Import the new, specific step models
+from .playbook_step_models import PlaybookStepModels
 
 bp = Blueprint('playbooks_bp', __name__)
 logger = logging.getLogger(__name__)
 
 # --- Pydantic Models for Validation ---
-class PlaybookStepModel(BaseModel):
-    type: str
-    name: str
-    on_failure: Optional[Dict[str, Any]] = None
-    # Allow any other fields since steps are dynamic
-    class Config:
-        extra = 'allow'
 
+# The main Playbook model now uses a list of the discriminated union of step models.
+# This enforces that every step in the list conforms to one of the defined step schemas.
 class PlaybookModel(BaseModel):
     name: str
     category_name: str
-    steps: List[PlaybookStepModel]
+    steps: List[PlaybookStepModels] # Use the Union of specific models
     final_status: Optional[str] = 'Processed'
 
 @bp.route('/playbooks', methods=['POST'])
 def create_playbook():
-    """Creates a new playbook."""
+    """Creates a new playbook with strict validation for each step type."""
     db = current_app.db
     data = request.get_json()
 
     try:
-        # Validate the incoming data against the Pydantic model
+        # Validate the incoming data. Pydantic will automatically use the `type`
+        # field on each step to apply the correct model (PromptStepModel, etc.)
         validated_data = PlaybookModel(**data).dict()
         playbook_id = db.create_playbook(validated_data)
         playbook = db.get_playbook(playbook_id)
@@ -76,7 +73,7 @@ def get_playbook(playbook_id):
 
 @bp.route('/playbooks/<playbook_id>', methods=['PUT'])
 def update_playbook(playbook_id):
-    """Updates an existing playbook."""
+    """Updates an existing playbook with strict validation for each step type."""
     db = current_app.db
     data = request.get_json()
     
@@ -87,7 +84,7 @@ def update_playbook(playbook_id):
         if not ObjectId.is_valid(playbook_id):
             return jsonify({"error": "Invalid playbook ID format"}), 400
 
-        # Validate the incoming data against the Pydantic model
+        # Validate the incoming data against the updated PlaybookModel
         validated_data = PlaybookModel(**data).dict()
 
         if db.update_playbook(playbook_id, validated_data):
@@ -118,15 +115,4 @@ def delete_playbook(playbook_id):
             return jsonify({"error": "Playbook not found"}), 404
     except Exception as e:
         logger.error(f"Error deleting playbook {playbook_id}: {e}", exc_info=True)
-        return jsonify({"error": "An internal error occurred"}), 500
-
-@bp.route('/playbooks/steps', methods=['GET'])
-def get_playbook_steps():
-    """Returns the metadata for all available playbook steps."""
-    from app.playbook_steps import get_step_metadata
-    try:
-        metadata = get_step_metadata()
-        return jsonify(metadata), 200
-    except Exception as e:
-        logger.error(f"Error fetching playbook step metadata: {e}", exc_info=True)
         return jsonify({"error": "An internal error occurred"}), 500

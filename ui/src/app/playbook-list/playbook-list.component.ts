@@ -1,56 +1,71 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+
+import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Router, RouterModule } from '@angular/router';
+
+// Angular Material Modules
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+import { MatButtonModule } from '@angular/material/button';
+import { MatListModule } from '@angular/material/list';
+import { MatIconModule } from '@angular/material/icon';
+
 import { Playbook, PlaybookService } from '../services/playbook.service';
-import { Subscription } from 'rxjs';
+import { PlaybookEditorComponent } from '../playbook-editor/playbook-editor.component';
 
 @Component({
   selector: 'app-playbook-list',
-  templateUrl: './playbook-list.component.html',
-  styleUrls: ['./playbook-list.component.scss'],
   standalone: true,
-  imports: [CommonModule, RouterModule]
+  imports: [
+    CommonModule,
+    MatButtonModule,
+    MatListModule,
+    MatIconModule,
+    MatDialogModule,
+    PlaybookEditorComponent
+  ],
+  templateUrl: './playbook-list.component.html',
+  styleUrls: ['./playbook-list.component.scss']
 })
-export class PlaybookListComponent implements OnInit, OnDestroy {
-
-  public playbooks: Playbook[] = [];
-  private refreshSubscription!: Subscription;
+export class PlaybookListComponent implements OnInit {
+  playbooks: Playbook[] = [];
 
   constructor(
     private playbookService: PlaybookService,
-    private router: Router
+    public dialog: MatDialog
   ) { }
 
   ngOnInit(): void {
     this.loadPlaybooks();
-    this.refreshSubscription = this.playbookService.onRefreshNeeded().subscribe(() => {
-      this.loadPlaybooks();
-    });
-  }
-
-  ngOnDestroy(): void {
-    if (this.refreshSubscription) {
-      this.refreshSubscription.unsubscribe();
-    }
   }
 
   loadPlaybooks(): void {
-    this.playbookService.getPlaybooks().subscribe(data => {
-      this.playbooks = data;
+    this.playbookService.getPlaybooks().subscribe(playbooks => {
+      this.playbooks = playbooks;
     });
   }
 
-  createNewPlaybook(): void {
-    this.router.navigate(['/playbooks/new']);
+  openPlaybookEditor(playbook?: Playbook): void {
+    const dialogRef = this.dialog.open(PlaybookEditorComponent, {
+      width: '800px',
+      disableClose: true,
+      data: { playbook: playbook }
+    });
+
+    dialogRef.afterClosed().subscribe(result => {
+      if (result) {
+        if (playbook?._id) {
+          this.playbookService.updatePlaybook(playbook._id, result).subscribe(() => this.loadPlaybooks());
+        } else {
+          this.playbookService.createPlaybook(result).subscribe(() => this.loadPlaybooks());
+        }
+      }
+    });
   }
 
-  editPlaybook(id: string): void {
-    this.router.navigate(['/playbooks', id, 'edit']);
-  }
-
-  deletePlaybook(id: string): void {
-    if (confirm('Are you sure you want to delete this playbook?')) {
-        this.playbookService.deletePlaybook(id);
+  deletePlaybook(id: string | undefined): void {
+    if (id) {
+        this.playbookService.deletePlaybook(id).subscribe(() => {
+            this.loadPlaybooks();
+        });
     }
   }
 }

@@ -1,6 +1,8 @@
+
 import logging
 from mongoengine import connect
-from app.models import Document, AuditLog
+from app.models import Document, AuditLog, Playbook
+from bson import ObjectId
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +19,39 @@ def init_db(app):
     except Exception as e:
         logger.critical(f"Could not connect to MongoDB via MongoEngine. Error: {e}", exc_info=True)
         raise
+
+# --- Playbook CRUD Operations ---
+def create_playbook(data):
+    """Creates a new playbook in the database."""
+    playbook = Playbook(**data)
+    playbook.save()
+    return str(playbook.id)
+
+def get_playbooks(category_name=None):
+    """Retrieves all playbooks, optionally filtered by category name."""
+    if category_name:
+        return Playbook.objects(category_name=category_name).to_json()
+    return Playbook.objects().to_json()
+
+def get_playbook(playbook_id):
+    """Retrieves a single playbook by its ID."""
+    return Playbook.objects(id=ObjectId(playbook_id)).first().to_json()
+
+def update_playbook(playbook_id, data):
+    """Updates an existing playbook."""
+    playbook = Playbook.objects(id=ObjectId(playbook_id)).first()
+    if playbook:
+        playbook.update(**data)
+        return True
+    return False
+
+def delete_playbook(playbook_id):
+    """Deletes a playbook from the database."""
+    playbook = Playbook.objects(id=ObjectId(playbook_id)).first()
+    if playbook:
+        playbook.delete()
+        return True
+    return False
 
 def get_document_audit_trail(doc_id: str):
     """
