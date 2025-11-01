@@ -42,7 +42,6 @@ def upload_document():
             orchestrator_agent_task.delay(doc_id=doc_id)
             logger.info(f"Successfully uploaded document '{new_doc.filename}' with ID {doc_id}. Queued for orchestration.")
             
-            # Use to_json and then json.loads to get a proper dict
             doc_json = json.loads(new_doc.to_json())
             return jsonify(doc_json), 202
 
@@ -54,16 +53,30 @@ def upload_document():
 
 @bp.route('/', methods=['GET'])
 def get_documents():
+    """
+    Retrieves a paginated list of documents with robust parameter handling.
+    """
     try:
-        page = int(request.args.get('page', 1))
-        limit = int(request.args.get('limit', 10))
+        # --- CORRECTED ROBUST PARAMETER HANDLING ---
+        page_str = request.args.get('page', '1')
+        limit_str = request.args.get('limit', '10')
+
+        try:
+            page = int(page_str)
+        except (ValueError, TypeError):
+            page = 1
+        
+        try:
+            limit = int(limit_str)
+        except (ValueError, TypeError):
+            limit = 10
+
         sort_by = request.args.get('sort_by', 'created_at')
         sort_order = request.args.get('sort_order', 'desc')
-        filters = {k: v for k, v in request.args.items() if k not in ['page', 'limit', 'sort_by', 'sort_order']}
+        filters = {k: v for k, v in request.args.items() if k not in ['page', 'limit', 'sort_by', 'sort_order'] and v is not None and v != 'undefined'}
 
         documents, total = database.get_paginated_documents(page, limit, sort_by, sort_order, filters)
         
-        # get_paginated_documents already returns a list of dicts
         return jsonify({"items": documents, "total": total, "page": page, "limit": limit}), 200
     except Exception as e:
         logger.error(f"Error fetching documents: {e}", exc_info=True)
@@ -106,8 +119,6 @@ def search_documents():
     if not query:
         return jsonify({"error": "Query parameter 'q' is required"}), 400
     try:
-        # Assuming search_documents should be in database.py or implemented here
-        # For now, let's implement a simple search on the Document model
         documents = Document.objects(filename__icontains=query, is_deleted=False)
         docs_json = json.loads(documents.to_json())
         return jsonify(docs_json), 200
@@ -132,7 +143,7 @@ def download_document(doc_id):
             download_name=doc.filename
         )
     except Exception as e:
-        logger.error(f"Error downloading file for doc {doc_id}: {e}", exc_info=True.to_json())
+        logger.error(f"Error downloading file for doc {doc_id}: {e}", exc_info=True)
         return jsonify({"error": "An internal error occurred"}), 500
 
 @bp.route('/<doc_id>/kvp', methods=['PUT'])
@@ -148,10 +159,8 @@ def update_kvp(doc_id):
         if not ObjectId.is_valid(doc_id):
             return jsonify({"error": "Invalid document ID format"}), 400
 
-        # Implement optimistic locking directly
         doc = Document.objects(id=doc_id, _version=version).first()
         if not doc:
-            # Check if it's a version mismatch or the doc is just gone
             if Document.objects(id=doc_id).first():
                 return jsonify({"error": "Conflict: The document has been modified by another process. Please refresh and try again."}), 409
             else:
@@ -198,9 +207,6 @@ def recategorize_document(doc_id):
             }
         ))
         doc.save()
-
-        # Here you might want to create a fine-tuning example for the model
-        # This logic can be moved to a Celery task
         
         updated_doc = json.loads(doc.to_json())
         logger.info(f"Document {doc_id} re-categorized to '{new_category}' by user.")
@@ -216,7 +222,6 @@ def reprocess_document(doc_id):
         if not ObjectId.is_valid(doc_id):
             return jsonify({"error": "Invalid document ID format"}), 400
 
-        # Check if doc exists before queueing task
         if not Document.objects(id=doc_id).first():
             return jsonify({"error": "Document not found"}), 404
 
@@ -229,19 +234,16 @@ def reprocess_document(doc_id):
         return jsonify({"error": "An internal error occurred"}), 500
 
 @bp.route('/<doc_id>/stop', methods=['POST'])
-def stop_document_processing_route(doc_id): # Renamed to avoid conflict
+def stop_document_processing_route(doc_id):
     try:
         if not ObjectId.is_valid(doc_id):
             return jsonify({"error": "Invalid document ID format"}), 400
 
-        # The logic for this is in database.py and seems correct.
-        # Let's call it.
         success = database.stop_document_processing(doc_id)
         
         if success:
              return jsonify({"message": "Document processing has been signaled to stop."}), 202
         else:
-            # The function returns False if the doc is not found or not in a stoppable state.
             doc = Document.objects(id=doc_id).first()
             if not doc:
                 return jsonify({"error": "Document not found"}), 404
@@ -261,10 +263,8 @@ def get_document_history(doc_id):
         if not Document.objects(id=doc_id).first():
             return jsonify({"error": "Document not found"}), 404
 
-        # This function in database.py seems correct.
         history = list(database.get_document_audit_trail(doc_id))
         
-        # Use the custom JSONEncoder to handle ObjectId and datetime
         return current_app.response_class(JSONEncoder().encode(history), mimetype='application/json')
     except Exception as e:
         logger.error(f"Error fetching history for document {doc_id}: {e}", exc_info=True)
