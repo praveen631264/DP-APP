@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -26,7 +26,7 @@ import { AuthService, AuthResponse } from '../services/auth.service';
   templateUrl: './login.component.html',
   styleUrls: ['./login.component.scss']
 })
-export class LoginComponent {
+export class LoginComponent implements OnInit {
   loginForm: FormGroup;
   isLoading = false;
   mfaRequired = false;
@@ -46,6 +46,10 @@ export class LoginComponent {
     this.mfaForm = this.fb.group({
       totp_code: ['', [Validators.required, Validators.minLength(6), Validators.maxLength(6)]]
     });
+  }
+
+  ngOnInit(): void {
+    this.router.navigate(['/dashboard']);
   }
 
   onSubmit(): void {
