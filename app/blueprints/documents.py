@@ -67,12 +67,27 @@ def get_documents():
     """
     db = current_app.db
     try:
-        page = int(request.args.get('page', 1))
-        limit = int(request.args.get('limit', 10))
+        page_str = request.args.get('page', '1')
+        limit_str = request.args.get('limit', '10')
+
+        try:
+            page = int(page_str)
+        except (ValueError, TypeError):
+            page = 1
+
+        try:
+            limit = int(limit_str)
+        except (ValueError, TypeError):
+            limit = 10
+
+        if page < 1:
+            page = 1
+        if limit < 1:
+            limit = 10
+
         sort_by = request.args.get('sort_by', 'created_at')
         sort_order = request.args.get('sort_order', 'desc')
         
-        # Collect all other query parameters as filters
         filters = {k: v for k, v in request.args.items() if k not in ['page', 'limit', 'sort_by', 'sort_order']}
 
         documents, total = database.get_paginated_documents(page, limit, sort_by, sort_order, filters)
