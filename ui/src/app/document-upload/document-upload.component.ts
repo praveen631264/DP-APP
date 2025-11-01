@@ -1,6 +1,9 @@
-import { Component } from '@angular/core';
+import { Component, EventEmitter, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { DocumentService } from '../services/document.service';
+import { forkJoin } from 'rxjs';
+import { finalize } from 'rxjs/operators';
 
 @Component({
   selector: 'app-document-upload',
@@ -10,9 +13,14 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
   imports: [CommonModule, MatSnackBarModule]
 })
 export class DocumentUploadComponent {
+  @Output() uploadSuccess = new EventEmitter<void>();
   files: File[] = [];
+  isUploading = false;
 
-  constructor(private snackBar: MatSnackBar) {}
+  constructor(
+    private snackBar: MatSnackBar,
+    private documentService: DocumentService
+  ) {}
 
   onFileSelected(event: any) {
     this.files.push(...event.target.files);
@@ -41,9 +49,29 @@ export class DocumentUploadComponent {
   }
 
   uploadFiles() {
-    // Implement the upload logic here
-    console.log('Uploading files:', this.files);
-    this.snackBar.open('Files uploaded successfully!', 'Close', { duration: 3000 });
-    this.files = [];
+    if (this.files.length === 0) {
+      return;
+    }
+
+    this.isUploading = true;
+    const uploadObservables = this.files.map(file => this.documentService.uploadDocument(file));
+
+    forkJoin(uploadObservables)
+      .pipe(
+        finalize(() => {
+          this.isUploading = false;
+          this.files = [];
+        })
+      )
+      .subscribe({
+        next: () => {
+          this.snackBar.open('Files uploaded successfully!', 'Close', { duration: 3000 });
+          this.uploadSuccess.emit();
+        },
+        error: (error) => {
+          console.error('Error uploading files:', error);
+          this.snackBar.open('Error uploading files. Please try again.', 'Close', { duration: 3000 });
+        }
+      });
   }
 }
