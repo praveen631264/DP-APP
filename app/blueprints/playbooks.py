@@ -30,7 +30,7 @@ class SearchStepModel(BaseStep):
 # Create a Discriminated Union of the specific step models.
 # The 'type' field is the discriminator. Pydantic will use it to determine
 # which model to use for validation.
-PlaybookStepModels = Union[LLMPrompStepModel, SearchStepModel]
+PlaybookStepModels = Union[LLMPromptStepModel, SearchStepModel]
 
 # The main Playbook model now uses a list of the discriminated union of step models.
 # This enforces that every step in the list conforms to one of the defined step schemas.
