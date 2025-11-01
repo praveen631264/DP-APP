@@ -1,12 +1,14 @@
+
 import logging
 import datetime
+import json
 from flask import Blueprint, request, jsonify, current_app, send_file
 from werkzeug.utils import secure_filename
-from app.security import attribute_required
 from app.orchestrator_worker import orchestrator_agent_task
 from io import BytesIO
 from app.utils.json_encoder import JSONEncoder
 from bson import ObjectId
+from app.models import Document, AuditLog
 from app import database
 
 bp = Blueprint('documents_bp', __name__)
@@ -20,33 +22,30 @@ def allowed_file(filename):
 
 @bp.route('/', methods=['POST'])
 def upload_document():
-    """
-    Uploads a new document for processing.
-    The file should be sent as multipart/form-data in the 'file' field.
-    """
     if 'file' not in request.files:
         return jsonify({"error": "No file part in the request"}), 400
     file = request.files['file']
     if file.filename == '':
         return jsonify({"error": "No file selected for uploading"}), 400
+
     if file and allowed_file(file.filename):
         try:
-            file_id = database.save_file(file)
-            doc_data = {
-                'filename': secure_filename(file.filename),
-                'content_type': file.content_type,
-                'file_id': file_id,
-                'status': 'Queued for Orchestration',
-                'created_at': datetime.datetime.utcnow()
-            }
-            doc_id = database.create_document(doc_data)
-            
-            # Invoke the central brain to decide what to do next
+            new_doc = Document(
+                filename=secure_filename(file.filename),
+                content_type=file.content_type,
+                status='Queued for Orchestration',
+                audit_trail=[AuditLog(event_name="File Uploaded")]
+            )
+            new_doc.file.put(file.stream, content_type=file.content_type)
+            new_doc.save()
+            doc_id = str(new_doc.id)
             orchestrator_agent_task.delay(doc_id=doc_id)
+            logger.info(f"Successfully uploaded document '{new_doc.filename}' with ID {doc_id}. Queued for orchestration.")
             
-            created_doc = database.get_document(doc_id)
-            logger.info(f"Successfully uploaded document '{created_doc['filename']}' with ID {doc_id}")
-            return jsonify(created_doc), 202
+            # Use to_json and then json.loads to get a proper dict
+            doc_json = json.loads(new_doc.to_json())
+            return jsonify(doc_json), 202
+
         except Exception as e:
             logger.error(f"Error during document upload: {e}", exc_info=True)
             return jsonify({"error": "An internal error occurred during file upload"}), 500
@@ -55,40 +54,16 @@ def upload_document():
 
 @bp.route('/', methods=['GET'])
 def get_documents():
-    """
-    Retrieves a paginated, sorted, and filtered list of documents.
-    Query Params:
-    - page: The page number (default: 1)
-    - limit: The number of items per page (default: 10)
-    - sort_by: The field to sort by (default: 'created_at')
-    - sort_order: 'asc' or 'desc' (default: 'desc')
-    - Any other query param is treated as a filter (e.g., ?status=Completed)
-    """
     try:
-        page_str = request.args.get('page', '1')
-        limit_str = request.args.get('limit', '10')
-
-        try:
-            page = int(page_str)
-        except (ValueError, TypeError):
-            page = 1
-
-        try:
-            limit = int(limit_str)
-        except (ValueError, TypeError):
-            limit = 10
-
-        if page < 1:
-            page = 1
-        if limit < 1:
-            limit = 10
-
+        page = int(request.args.get('page', 1))
+        limit = int(request.args.get('limit', 10))
         sort_by = request.args.get('sort_by', 'created_at')
         sort_order = request.args.get('sort_order', 'desc')
-        
         filters = {k: v for k, v in request.args.items() if k not in ['page', 'limit', 'sort_by', 'sort_order']}
 
         documents, total = database.get_paginated_documents(page, limit, sort_by, sort_order, filters)
+        
+        # get_paginated_documents already returns a list of dicts
         return jsonify({"items": documents, "total": total, "page": page, "limit": limit}), 200
     except Exception as e:
         logger.error(f"Error fetching documents: {e}", exc_info=True)
@@ -96,13 +71,15 @@ def get_documents():
 
 @bp.route('/<doc_id>', methods=['GET'])
 def get_document_details(doc_id):
-    """Retrieves all details for a single document by its ID."""
     try:
         if not ObjectId.is_valid(doc_id):
             return jsonify({"error": "Invalid document ID format"}), 400
-        document = database.get_document(doc_id)
+        
+        document = Document.objects(id=doc_id, is_deleted=False).first()
+        
         if document:
-            return jsonify(document), 200
+            doc_json = json.loads(document.to_json())
+            return jsonify(doc_json), 200
         else:
             return jsonify({"error": "Document not found"}), 404
     except Exception as e:
@@ -111,16 +88,10 @@ def get_document_details(doc_id):
 
 @bp.route('/<doc_id>', methods=['DELETE'])
 def delete_document(doc_id):
-    """
-    Soft-deletes a document. This is a non-destructive operation.
-    The orchestrator should ensure any in-flight processing is halted.
-    """
     try:
         if not ObjectId.is_valid(doc_id):
             return jsonify({"error": "Invalid document ID format"}), 400
         
-        # Here you might want to signal the orchestrator to stop processing before deleting
-        # For now, we will directly mark it as deleted.
         if database.soft_delete_document(doc_id):
             return jsonify({"message": "Document has been successfully archived."}), 200
         else:
@@ -131,36 +102,37 @@ def delete_document(doc_id):
 
 @bp.route('/search', methods=['GET'])
 def search_documents():
-    """Searches for documents by filename."""
     query = request.args.get('q')
     if not query:
         return jsonify({"error": "Query parameter 'q' is required"}), 400
     try:
-        documents = database.search_documents(query)
-        return jsonify(documents), 200
+        # Assuming search_documents should be in database.py or implemented here
+        # For now, let's implement a simple search on the Document model
+        documents = Document.objects(filename__icontains=query, is_deleted=False)
+        docs_json = json.loads(documents.to_json())
+        return jsonify(docs_json), 200
     except Exception as e:
         logger.error(f"Error during document search for query '{query}': {e}", exc_info=True)
         return jsonify({"error": "An internal error occurred"}), 500
 
 @bp.route('/<doc_id>/download', methods=['GET'])
-# @attribute_required # The policy is now fetched from the database
 def download_document(doc_id):
-    """Downloads the original file for a given document."""
     try:
         if not ObjectId.is_valid(doc_id):
             return jsonify({"error": "Invalid document ID format"}), 400
-        file_data = database.get_file_with_metadata(doc_id)
-        if file_data:
-            return send_file(
-                BytesIO(file_data['content']),
-                mimetype=file_data['content_type'],
-                as_attachment=True,
-                download_name=file_data['filename']
-            )
-        else:
+            
+        doc = Document.objects(id=doc_id).first()
+        if not doc or not doc.file:
             return jsonify({"error": "File not found for this document"}), 404
+        
+        return send_file(
+            BytesIO(doc.file.read()),
+            mimetype=doc.content_type,
+            as_attachment=True,
+            download_name=doc.filename
+        )
     except Exception as e:
-        logger.error(f"Error downloading file for doc {doc_id}: {e}", exc_info=True)
+        logger.error(f"Error downloading file for doc {doc_id}: {e}", exc_info=True.to_json())
         return jsonify({"error": "An internal error occurred"}), 500
 
 @bp.route('/<doc_id>/kvp', methods=['PUT'])
@@ -172,22 +144,33 @@ def update_kvp(doc_id):
     if not isinstance(new_kvps, dict) or version is None:
         return jsonify({"error": "Invalid JSON: body must be a dictionary containing 'kvps' and '_version'"}), 400
 
-    if not database.get_document(doc_id):
-        return jsonify({"error": "Document not found"}), 404
+    try:
+        if not ObjectId.is_valid(doc_id):
+            return jsonify({"error": "Invalid document ID format"}), 400
 
-    if not database.update_document_kvp(doc_id, version, new_kvps):
-        # This indicates a version mismatch (a race condition)
-        return jsonify({"error": "Conflict: The document has been modified by another process. Please refresh and try again."}), 409
+        # Implement optimistic locking directly
+        doc = Document.objects(id=doc_id, _version=version).first()
+        if not doc:
+            # Check if it's a version mismatch or the doc is just gone
+            if Document.objects(id=doc_id).first():
+                return jsonify({"error": "Conflict: The document has been modified by another process. Please refresh and try again."}), 409
+            else:
+                return jsonify({"error": "Document not found"}), 404
 
-    updated_doc = database.get_document(doc_id)
-    return jsonify({"message": "KVP updated successfully", "document": updated_doc})
+        doc.kvps = new_kvps
+        doc._version += 1
+        doc.audit_trail.append(AuditLog(event_name="KVP Updated", details={"source": "user_action"}))
+        doc.save()
+
+        updated_doc = json.loads(doc.to_json())
+        return jsonify({"message": "KVP updated successfully", "document": updated_doc})
+
+    except Exception as e:
+        logger.error(f"Error updating KVP for doc {doc_id}: {e}", exc_info=True)
+        return jsonify({"error": "An internal error occurred"}), 500
 
 @bp.route('/<doc_id>/recategorize', methods=['PUT'])
 def recategorize_document(doc_id):
-    """
-    Manually changes the category of a document and provides an explanation.
-    This action also creates a fine-tuning example for the model.
-    """
     data = request.get_json()
     new_category = data.get('new_category')
     explanation = data.get('explanation', 'Manual user correction.')
@@ -199,27 +182,44 @@ def recategorize_document(doc_id):
         if not ObjectId.is_valid(doc_id):
             return jsonify({"error": "Invalid document ID format"}), 400
         
-        success = database.recategorize_document(doc_id, new_category, explanation)
-        if success:
-            updated_doc = database.get_document(doc_id)
-            logger.info(f"Document {doc_id} re-categorized to '{new_category}' by user.")
-            return jsonify({"message": "Document re-categorized successfully", "document": updated_doc}), 200
-        else:
-            return jsonify({"error": "Document not found or update failed"}), 404
+        doc = Document.objects(id=doc_id).first()
+        if not doc:
+            return jsonify({"error": "Document not found"}), 404
+
+        original_category = doc.category
+        doc.category = new_category
+        doc.audit_trail.append(AuditLog(
+            event_name="Manual Recategorization", 
+            details={
+                "original_category": original_category,
+                "new_category": new_category,
+                "explanation": explanation,
+                "source": "user_action"
+            }
+        ))
+        doc.save()
+
+        # Here you might want to create a fine-tuning example for the model
+        # This logic can be moved to a Celery task
+        
+        updated_doc = json.loads(doc.to_json())
+        logger.info(f"Document {doc_id} re-categorized to '{new_category}' by user.")
+        return jsonify({"message": "Document re-categorized successfully", "document": updated_doc}), 200
+
     except Exception as e:
         logger.error(f"Error re-categorizing document {doc_id}: {e}", exc_info=True)
         return jsonify({"error": "An internal error occurred"}), 500
 
 @bp.route('/<doc_id>/reprocess', methods=['POST'])
 def reprocess_document(doc_id):
-    """
-    Re-triggers the entire processing pipeline for a document.
-    """
     try:
         if not ObjectId.is_valid(doc_id):
             return jsonify({"error": "Invalid document ID format"}), 400
 
-        # Invoke the central brain with a human override command
+        # Check if doc exists before queueing task
+        if not Document.objects(id=doc_id).first():
+            return jsonify({"error": "Document not found"}), 404
+
         orchestrator_agent_task.delay(doc_id=doc_id, human_override_action="reprocess")
         
         logger.info(f"Human operator triggered reprocessing for document {doc_id}")
@@ -229,41 +229,39 @@ def reprocess_document(doc_id):
         return jsonify({"error": "An internal error occurred"}), 500
 
 @bp.route('/<doc_id>/stop', methods=['POST'])
-def stop_document_processing(doc_id):
-    """
-    Cooperatively stops the processing of a document by setting its status to 'Force Stopped'.
-    This acts as a 'stop' or 'pause' command. Processing can be resumed via the 'reprocess' endpoint.
-    """
+def stop_document_processing_route(doc_id): # Renamed to avoid conflict
     try:
         if not ObjectId.is_valid(doc_id):
             return jsonify({"error": "Invalid document ID format"}), 400
 
-        doc = database.get_document(doc_id)
-        if not doc:
-            return jsonify({"error": "Document not found"}), 404
+        # The logic for this is in database.py and seems correct.
+        # Let's call it.
+        success = database.stop_document_processing(doc_id)
+        
+        if success:
+             return jsonify({"message": "Document processing has been signaled to stop."}), 202
+        else:
+            # The function returns False if the doc is not found or not in a stoppable state.
+            doc = Document.objects(id=doc_id).first()
+            if not doc:
+                return jsonify({"error": "Document not found"}), 404
+            else:
+                 return jsonify({"error": f"Document is not in a stoppable state. Current status: '{doc.status}'"}), 409
 
-        # Define states from which processing can be stopped.
-        stoppable_statuses = ['Processing', 'Queued for Orchestration', 'Queued for Reprocessing', 'Chunks Processed', 'INTERRUPTED']
-        if doc.get('status') not in stoppable_statuses:
-            return jsonify({"error": f"Document is not in a stoppable state. Current status: '{doc.get('status')}'"}), 409
-
-        database.stop_document_processing(doc_id)
-        return jsonify({"message": "Document processing has been signaled to stop."}), 202
     except Exception as e:
         logger.error(f"Error stopping processing for doc {doc_id}: {e}", exc_info=True)
         return jsonify({"error": "An internal error occurred"}), 500
 
 @bp.route('/<doc_id>/history', methods=['GET'])
 def get_document_history(doc_id):
-    """Retrieves the audit trail (history) for a single document."""
     try:
         if not ObjectId.is_valid(doc_id):
             return jsonify({"error": "Invalid document ID format"}), 400
         
-        # Check if document exists
-        if not database.get_document(doc_id):
+        if not Document.objects(id=doc_id).first():
             return jsonify({"error": "Document not found"}), 404
 
+        # This function in database.py seems correct.
         history = list(database.get_document_audit_trail(doc_id))
         
         # Use the custom JSONEncoder to handle ObjectId and datetime

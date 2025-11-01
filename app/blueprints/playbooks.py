@@ -1,40 +1,32 @@
 
 import logging
-from flask import Blueprint, request, jsonify, current_app
-from bson import ObjectId
+from flask import Blueprint, request, jsonify
+from bson import ObjectId, json_util
+import json
 from pydantic import BaseModel, Field, ValidationError
-from typing import List, Dict, Any, Optional, Literal, Union
-from app import database # Correctly import the database module
+from typing import List, Optional, Literal, Union
+from app.models import Playbook, PlaybookStep  # Import the MongoEngine models
 
 bp = Blueprint('playbooks_bp', __name__)
 logger = logging.getLogger(__name__)
 
-# --- Pydantic Models for Validation ---
-
-# Base model for common step fields
+# --- Pydantic Models for Validation (remain the same) ---
 class BaseStep(BaseModel):
     name: str
     description: Optional[str] = None
 
-# Specific model for the 'LLM_PROMPT' step
 class LLMPromptStepModel(BaseStep):
     type: Literal['LLM_PROMPT']
     prompt_template: str
     output_key: str
 
-# Specific model for the 'VECTOR_SEARCH' step
 class SearchStepModel(BaseStep):
     type: Literal['VECTOR_SEARCH']
     query_template: str
     max_results: int = 3
 
-# Create a Discriminated Union of the specific step models.
-# The 'type' field is the discriminator. Pydantic will use it to determine
-# which model to use for validation.
 PlaybookStepModels = Union[LLMPromptStepModel, SearchStepModel]
 
-# The main Playbook model now uses a list of the discriminated union of step models.
-# This enforces that every step in the list conforms to one of the defined step schemas.
 class PlaybookModel(BaseModel):
     name: str
     category_name: str
@@ -43,17 +35,17 @@ class PlaybookModel(BaseModel):
 
 @bp.route('/playbooks', methods=['POST'])
 def create_playbook():
-    """Creates a new playbook with strict validation for each step type."""
+    """Creates a new playbook using MongoEngine models."""
     data = request.get_json()
-
     try:
-        # Validate the incoming data. Pydantic will automatically use the `type`
-        # field on each step to apply the correct model (PromptStepModel, etc.)
         validated_data = PlaybookModel(**data).dict()
-        playbook_id = database.create_playbook(validated_data)
-        playbook = database.get_playbook(playbook_id)
-        logger.info(f"Successfully created playbook '{validated_data['name']}' with ID {playbook_id}")
-        return jsonify(playbook), 201
+        
+        # --- CORRECTED LOGIC ---
+        new_playbook = Playbook(**validated_data)
+        new_playbook.save()
+        
+        logger.info(f"Successfully created playbook '{new_playbook.name}' with ID {new_playbook.id}")
+        return jsonify(json.loads(new_playbook.to_json())), 201
     except ValidationError as e:
         logger.warning(f"Playbook creation failed validation: {e.errors()}")
         return jsonify({"error": "Validation failed", "details": e.errors()}), 400
@@ -63,11 +55,16 @@ def create_playbook():
 
 @bp.route('/playbooks', methods=['GET'])
 def get_playbooks():
-    """Retrieves a list of all playbooks, optionally filtered by category."""
+    """Retrieves playbooks using MongoEngine queries."""
     category_name = request.args.get('category_name')
     try:
-        playbooks = database.get_playbooks(category_name=category_name)
-        return jsonify(playbooks), 200
+        # --- CORRECTED LOGIC ---
+        if category_name:
+            playbooks = Playbook.objects(category_name=category_name)
+        else:
+            playbooks = Playbook.objects()
+            
+        return jsonify(json.loads(playbooks.to_json())), 200
     except Exception as e:
         logger.error(f"Error fetching playbooks: {e}", exc_info=True)
         return jsonify({"error": "An internal error occurred"}), 500
@@ -78,10 +75,11 @@ def get_playbook(playbook_id):
     try:
         if not ObjectId.is_valid(playbook_id):
             return jsonify({"error": "Invalid playbook ID format"}), 400
-            
-        playbook = database.get_playbook(playbook_id)
+        
+        # --- CORRECTED LOGIC ---
+        playbook = Playbook.objects(id=playbook_id).first()
         if playbook:
-            return jsonify(playbook), 200
+            return jsonify(json.loads(playbook.to_json())), 200
         else:
             return jsonify({"error": "Playbook not found"}), 404
     except Exception as e:
@@ -90,25 +88,24 @@ def get_playbook(playbook_id):
 
 @bp.route('/playbooks/<playbook_id>', methods=['PUT'])
 def update_playbook(playbook_id):
-    """Updates an existing playbook with strict validation for each step type."""
+    """Updates an existing playbook."""
     data = request.get_json()
-    
-    if not data:
-        return jsonify({"error": "Request body cannot be empty"}), 400
-
     try:
         if not ObjectId.is_valid(playbook_id):
             return jsonify({"error": "Invalid playbook ID format"}), 400
-
-        # Validate the incoming data against the updated PlaybookModel
+            
         validated_data = PlaybookModel(**data).dict()
 
-        if database.update_playbook(playbook_id, validated_data):
-            updated_playbook = database.get_playbook(playbook_id)
-            logger.info(f"Successfully updated playbook {playbook_id}")
-            return jsonify(updated_playbook), 200
-        else:
-            return jsonify({"error": "Playbook not found or update failed"}), 404
+        # --- CORRECTED LOGIC ---
+        playbook = Playbook.objects(id=playbook_id).first()
+        if not playbook:
+            return jsonify({"error": "Playbook not found"}), 404
+
+        playbook.update(**validated_data)
+        playbook.reload() # Fetch the updated document
+
+        logger.info(f"Successfully updated playbook {playbook_id}")
+        return jsonify(json.loads(playbook.to_json())), 200
     except ValidationError as e:
         logger.warning(f"Playbook update failed validation: {e.errors()}")
         return jsonify({"error": "Validation failed", "details": e.errors()}), 400
@@ -123,11 +120,14 @@ def delete_playbook(playbook_id):
         if not ObjectId.is_valid(playbook_id):
             return jsonify({"error": "Invalid playbook ID format"}), 400
 
-        if database.delete_playbook(playbook_id):
-            logger.info(f"Successfully deleted playbook {playbook_id}")
-            return jsonify({"message": "Playbook deleted successfully"}), 200
-        else:
+        # --- CORRECTED LOGIC ---
+        playbook = Playbook.objects(id=playbook_id).first()
+        if not playbook:
             return jsonify({"error": "Playbook not found"}), 404
+
+        playbook.delete()
+        logger.info(f"Successfully deleted playbook {playbook_id}")
+        return jsonify({"message": "Playbook deleted successfully"}), 200
     except Exception as e:
         logger.error(f"Error deleting playbook {playbook_id}: {e}", exc_info=True)
         return jsonify({"error": "An internal error occurred"}), 500
