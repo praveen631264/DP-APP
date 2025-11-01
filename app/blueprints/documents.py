@@ -24,7 +24,6 @@ def upload_document():
     Uploads a new document for processing.
     The file should be sent as multipart/form-data in the 'file' field.
     """
-    db = current_app.db
     if 'file' not in request.files:
         return jsonify({"error": "No file part in the request"}), 400
     file = request.files['file']
@@ -32,7 +31,7 @@ def upload_document():
         return jsonify({"error": "No file selected for uploading"}), 400
     if file and allowed_file(file.filename):
         try:
-            file_id = db.save_file(file)
+            file_id = database.save_file(file)
             doc_data = {
                 'filename': secure_filename(file.filename),
                 'content_type': file.content_type,
@@ -40,12 +39,12 @@ def upload_document():
                 'status': 'Queued for Orchestration',
                 'created_at': datetime.datetime.utcnow()
             }
-            doc_id = db.create_document(doc_data)
+            doc_id = database.create_document(doc_data)
             
             # Invoke the central brain to decide what to do next
             orchestrator_agent_task.delay(doc_id=doc_id)
             
-            created_doc = db.get_document(doc_id)
+            created_doc = database.get_document(doc_id)
             logger.info(f"Successfully uploaded document '{created_doc['filename']}' with ID {doc_id}")
             return jsonify(created_doc), 202
         except Exception as e:
@@ -65,7 +64,6 @@ def get_documents():
     - sort_order: 'asc' or 'desc' (default: 'desc')
     - Any other query param is treated as a filter (e.g., ?status=Completed)
     """
-    db = current_app.db
     try:
         page_str = request.args.get('page', '1')
         limit_str = request.args.get('limit', '10')
@@ -99,11 +97,10 @@ def get_documents():
 @bp.route('/<doc_id>', methods=['GET'])
 def get_document_details(doc_id):
     """Retrieves all details for a single document by its ID."""
-    db = current_app.db
     try:
         if not ObjectId.is_valid(doc_id):
             return jsonify({"error": "Invalid document ID format"}), 400
-        document = db.get_document(doc_id)
+        document = database.get_document(doc_id)
         if document:
             return jsonify(document), 200
         else:
@@ -118,14 +115,13 @@ def delete_document(doc_id):
     Soft-deletes a document. This is a non-destructive operation.
     The orchestrator should ensure any in-flight processing is halted.
     """
-    db = current_app.db
     try:
         if not ObjectId.is_valid(doc_id):
             return jsonify({"error": "Invalid document ID format"}), 400
         
         # Here you might want to signal the orchestrator to stop processing before deleting
         # For now, we will directly mark it as deleted.
-        if db.soft_delete_document(doc_id):
+        if database.soft_delete_document(doc_id):
             return jsonify({"message": "Document has been successfully archived."}), 200
         else:
             return jsonify({"error": "Document not found or already deleted"}), 404
@@ -136,12 +132,11 @@ def delete_document(doc_id):
 @bp.route('/search', methods=['GET'])
 def search_documents():
     """Searches for documents by filename."""
-    db = current_app.db
     query = request.args.get('q')
     if not query:
         return jsonify({"error": "Query parameter 'q' is required"}), 400
     try:
-        documents = db.search_documents(query)
+        documents = database.search_documents(query)
         return jsonify(documents), 200
     except Exception as e:
         logger.error(f"Error during document search for query '{query}': {e}", exc_info=True)
@@ -151,11 +146,10 @@ def search_documents():
 # @attribute_required # The policy is now fetched from the database
 def download_document(doc_id):
     """Downloads the original file for a given document."""
-    db = current_app.db
     try:
         if not ObjectId.is_valid(doc_id):
             return jsonify({"error": "Invalid document ID format"}), 400
-        file_data = db.get_file_with_metadata(doc_id)
+        file_data = database.get_file_with_metadata(doc_id)
         if file_data:
             return send_file(
                 BytesIO(file_data['content']),
@@ -171,7 +165,6 @@ def download_document(doc_id):
 
 @bp.route('/<doc_id>/kvp', methods=['PUT'])
 def update_kvp(doc_id):
-    db = current_app.db
     data = request.get_json()
     new_kvps = data.get('kvps')
     version = data.get('_version')
@@ -179,14 +172,14 @@ def update_kvp(doc_id):
     if not isinstance(new_kvps, dict) or version is None:
         return jsonify({"error": "Invalid JSON: body must be a dictionary containing 'kvps' and '_version'"}), 400
 
-    if not db.get_document(doc_id):
+    if not database.get_document(doc_id):
         return jsonify({"error": "Document not found"}), 404
 
-    if not db.update_document_kvp(doc_id, version, new_kvps):
+    if not database.update_document_kvp(doc_id, version, new_kvps):
         # This indicates a version mismatch (a race condition)
         return jsonify({"error": "Conflict: The document has been modified by another process. Please refresh and try again."}), 409
 
-    updated_doc = db.get_document(doc_id)
+    updated_doc = database.get_document(doc_id)
     return jsonify({"message": "KVP updated successfully", "document": updated_doc})
 
 @bp.route('/<doc_id>/recategorize', methods=['PUT'])
@@ -195,7 +188,6 @@ def recategorize_document(doc_id):
     Manually changes the category of a document and provides an explanation.
     This action also creates a fine-tuning example for the model.
     """
-    db = current_app.db
     data = request.get_json()
     new_category = data.get('new_category')
     explanation = data.get('explanation', 'Manual user correction.')
@@ -207,9 +199,9 @@ def recategorize_document(doc_id):
         if not ObjectId.is_valid(doc_id):
             return jsonify({"error": "Invalid document ID format"}), 400
         
-        success = db.recategorize_document(doc_id, new_category, explanation)
+        success = database.recategorize_document(doc_id, new_category, explanation)
         if success:
-            updated_doc = db.get_document(doc_id)
+            updated_doc = database.get_document(doc_id)
             logger.info(f"Document {doc_id} re-categorized to '{new_category}' by user.")
             return jsonify({"message": "Document re-categorized successfully", "document": updated_doc}), 200
         else:
@@ -242,12 +234,11 @@ def stop_document_processing(doc_id):
     Cooperatively stops the processing of a document by setting its status to 'Force Stopped'.
     This acts as a 'stop' or 'pause' command. Processing can be resumed via the 'reprocess' endpoint.
     """
-    db = current_app.db
     try:
         if not ObjectId.is_valid(doc_id):
             return jsonify({"error": "Invalid document ID format"}), 400
 
-        doc = db.get_document(doc_id)
+        doc = database.get_document(doc_id)
         if not doc:
             return jsonify({"error": "Document not found"}), 404
 
@@ -256,7 +247,7 @@ def stop_document_processing(doc_id):
         if doc.get('status') not in stoppable_statuses:
             return jsonify({"error": f"Document is not in a stoppable state. Current status: '{doc.get('status')}'"}), 409
 
-        db.stop_document_processing(doc_id)
+        database.stop_document_processing(doc_id)
         return jsonify({"message": "Document processing has been signaled to stop."}), 202
     except Exception as e:
         logger.error(f"Error stopping processing for doc {doc_id}: {e}", exc_info=True)
@@ -265,13 +256,12 @@ def stop_document_processing(doc_id):
 @bp.route('/<doc_id>/history', methods=['GET'])
 def get_document_history(doc_id):
     """Retrieves the audit trail (history) for a single document."""
-    db = current_app.db
     try:
         if not ObjectId.is_valid(doc_id):
             return jsonify({"error": "Invalid document ID format"}), 400
         
         # Check if document exists
-        if not db.get_document(doc_id):
+        if not database.get_document(doc_id):
             return jsonify({"error": "Document not found"}), 404
 
         history = list(database.get_document_audit_trail(doc_id))

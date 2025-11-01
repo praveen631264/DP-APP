@@ -1,10 +1,10 @@
 import logging
-from flask import Blueprint, jsonify, current_app, request
+from flask import Blueprint, jsonify, request
 from flask_security import auth_required, roles_required
 from app.models import User, Role
 from app.audit import log_audit_event
 from bson import json_util, ObjectId
-from app.models import User, Role
+from app import database  # Correctly import the database module
 
 bp = Blueprint('admin_bp', __name__)
 logger = logging.getLogger(__name__)
@@ -17,11 +17,8 @@ def get_pending_users():
     Retrieves a list of all users awaiting approval.
     """
     try:
-        # Use the MongoEngine model to query for users
         pending_users = User.objects(approved=False)
-        # Convert MongoEngine documents to JSON
         users_json = [user.to_mongo().to_dict() for user in pending_users]
-        # Use json_util to handle BSON types like ObjectId
         return json_util.dumps(users_json), 200, {'Content-Type': 'application/json'}
     except Exception as e:
         logger.error(f"Error fetching pending users: {e}", exc_info=True)
@@ -64,9 +61,8 @@ def approve_user(user_id):
 # @roles_required('admin')
 def get_all_policies():
     """Retrieves all AACL policies from the database."""
-    db = current_app.db
     try:
-        policies = db.get_all_policies()
+        policies = database.get_all_policies()
         return json_util.dumps(policies), 200, {'Content-Type': 'application/json'}
     except Exception as e:
         logger.error(f"Error fetching AACL policies: {e}", exc_info=True)
@@ -104,7 +100,6 @@ def get_audit_log():
     try:
         page = int(request.args.get('page', 1))
         limit = int(request.args.get('limit', 50))
-        skip = (page - 1) * limit
         
         # Build a dynamic filter query
         filters = {}
@@ -115,9 +110,7 @@ def get_audit_log():
         if user_filter:
             filters['user_email'] = {'$regex': user_filter, '$options': 'i'} # Case-insensitive search
 
-        db = current_app.db
-        total = db.audit_log.count_documents(filters)
-        logs = list(db.audit_log.find(filters).sort('timestamp', -1).skip(skip).limit(limit))
+        logs, total = database.get_paginated_audit_logs(page, limit, filters)
 
         return jsonify({"items": logs, "total": total})
 
@@ -130,9 +123,8 @@ def get_audit_log():
 # @roles_required('admin')
 def delete_policy(resource):
     """Deletes an AACL policy for a given resource."""
-    db = current_app.db
     try:
-        result = db.delete_policy_for_resource(resource)
+        result = database.delete_policy_for_resource(resource)
         if result:
             logger.info(f"Deleted AACL policy for resource '{resource}'")
             return jsonify({
@@ -150,7 +142,6 @@ def delete_policy(resource):
 # @roles_required('admin')
 def set_policy():
     """Creates or updates an AACL policy for a specific resource."""
-    db = current_app.db
     data = request.get_json()
     resource = data.get('resource')
     policy = data.get('policy')
@@ -160,7 +151,7 @@ def set_policy():
         return jsonify({"error": "Missing required fields: 'resource' (string) and 'policy' (object)"}), 400
 
     try:
-        db.set_policy_for_resource(resource, policy, description)
+        database.set_policy_for_resource(resource, policy, description)
         logger.info(f"Set AACL policy for resource '{resource}'")
         return jsonify({
             "message": "Policy set successfully",

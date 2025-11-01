@@ -11,6 +11,7 @@ from app.ai_models import get_llm, get_embeddings
 from app.utils.doc_utils import extract_text
 from bson import ObjectId
 from app.celery_worker import global_chat_agent_task
+from app import database # Correctly import the database module
 
 bp = Blueprint('chat_bp', __name__)
 logger = logging.getLogger(__name__)
@@ -28,7 +29,7 @@ def search_documents_by_category_and_query(query: str, category: str = None) -> 
     logger.info(f"AGENT TOOL: Running search_documents_by_category_and_query with query='{query}' and category='{category}'")
     
     embeddings = get_embeddings()
-    vector_store = get_vector_store(current_app.db, embeddings)
+    vector_store = get_vector_store(database, embeddings)
 
     search_kwargs = {"k": 5}
     if category and category.lower() != "all":
@@ -134,14 +135,13 @@ def chat_with_document():
     if not ObjectId.is_valid(doc_id):
         return jsonify({"error": "Invalid document ID format"}), 400
 
-    db = current_app.db
-    document = db.get_document(doc_id)
+    document = database.get_document(doc_id)
 
     if not document:
         return jsonify({"error": "Document not found"}), 404
 
     try:
-        file_data = db.get_file(document['file_id'])
+        file_data = database.get_file(document['file_id'])
         if not file_data:
             return jsonify({"error": "Document file content not found."}), 404
         
