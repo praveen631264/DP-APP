@@ -9,7 +9,6 @@ from io import BytesIO
 from app.utils.json_encoder import JSONEncoder
 from bson import ObjectId
 from app.models import Document, AuditLog
-from app import database
 
 bp = Blueprint('documents_bp', __name__)
 logger = logging.getLogger(__name__)
@@ -54,18 +53,16 @@ def upload_document():
 @bp.route('/', methods=['GET'])
 def get_documents():
     """
-    Retrieves a paginated list of documents with robust parameter handling.
+    Retrieves a paginated and filtered list of documents using direct MongoEngine queries.
     """
     try:
-        # --- CORRECTED ROBUST PARAMETER HANDLING ---
+        # --- Robust Parameter Handling ---
         page_str = request.args.get('page', '1')
         limit_str = request.args.get('limit', '10')
-
         try:
             page = int(page_str)
         except (ValueError, TypeError):
             page = 1
-        
         try:
             limit = int(limit_str)
         except (ValueError, TypeError):
@@ -73,14 +70,33 @@ def get_documents():
 
         sort_by = request.args.get('sort_by', 'created_at')
         sort_order = request.args.get('sort_order', 'desc')
-        filters = {k: v for k, v in request.args.items() if k not in ['page', 'limit', 'sort_by', 'sort_order'] and v is not None and v != 'undefined'}
-
-        documents, total = database.get_paginated_documents(page, limit, sort_by, sort_order, filters)
         
-        return jsonify({"items": documents, "total": total, "page": page, "limit": limit}), 200
+        # --- Direct MongoEngine Querying ---
+        query_filters = {'is_deleted': False}
+        # Collect valid filters from request arguments
+        for key, value in request.args.items():
+            if key not in ['page', 'limit', 'sort_by', 'sort_order'] and value and value != 'undefined':
+                # Use __icontains for string searches to be case-insensitive
+                if hasattr(Document, key) and isinstance(getattr(Document, key), str):
+                    query_filters[f"{key}__icontains"] = value
+                else:
+                    query_filters[key] = value
+
+        # Get total count based on filters
+        total = Document.objects(**query_filters).count()
+
+        # Apply sorting, pagination and execute query
+        sort_string = f"{'-' if sort_order == 'desc' else ''}{sort_by}"
+        documents_queryset = Document.objects(**query_filters).order_by(sort_string).skip((page - 1) * limit).limit(limit)
+
+        # --- Correct JSON Serialization ---
+        documents_json = json.loads(documents_queryset.to_json())
+        
+        return jsonify({"items": documents_json, "total": total, "page": page, "limit": limit}), 200
     except Exception as e:
         logger.error(f"Error fetching documents: {e}", exc_info=True)
         return jsonify({"error": "An internal error occurred"}), 500
+
 
 @bp.route('/<doc_id>', methods=['GET'])
 def get_document_details(doc_id):
@@ -105,10 +121,14 @@ def delete_document(doc_id):
         if not ObjectId.is_valid(doc_id):
             return jsonify({"error": "Invalid document ID format"}), 400
         
-        if database.soft_delete_document(doc_id):
-            return jsonify({"message": "Document has been successfully archived."}), 200
-        else:
-            return jsonify({"error": "Document not found or already deleted"}), 404
+        doc = Document.objects(id=doc_id).first()
+        if not doc:
+            return jsonify({"error": "Document not found"}), 404
+        
+        doc.is_deleted = True
+        doc.save()
+
+        return jsonify({"message": "Document has been successfully archived."}), 200
     except Exception as e:
         logger.error(f"Error soft-deleting document {doc_id}: {e}", exc_info=True)
         return jsonify({"error": "An internal error occurred"}), 500
@@ -239,16 +259,15 @@ def stop_document_processing_route(doc_id):
         if not ObjectId.is_valid(doc_id):
             return jsonify({"error": "Invalid document ID format"}), 400
 
-        success = database.stop_document_processing(doc_id)
+        doc = Document.objects(id=doc_id).first()
+        if not doc:
+            return jsonify({"error": "Document not found"}), 404
         
-        if success:
-             return jsonify({"message": "Document processing has been signaled to stop."}), 202
-        else:
-            doc = Document.objects(id=doc_id).first()
-            if not doc:
-                return jsonify({"error": "Document not found"}), 404
-            else:
-                 return jsonify({"error": f"Document is not in a stoppable state. Current status: '{doc.status}'"}), 409
+        # Logic to stop processing should be here or in a service layer
+        doc.status = "Stopped"
+        doc.save()
+
+        return jsonify({"message": "Document processing has been signaled to stop."}), 202
 
     except Exception as e:
         logger.error(f"Error stopping processing for doc {doc_id}: {e}", exc_info=True)
@@ -260,12 +279,14 @@ def get_document_history(doc_id):
         if not ObjectId.is_valid(doc_id):
             return jsonify({"error": "Invalid document ID format"}), 400
         
-        if not Document.objects(id=doc_id).first():
+        doc = Document.objects(id=doc_id).first()
+        if not doc:
             return jsonify({"error": "Document not found"}), 404
 
-        history = list(database.get_document_audit_trail(doc_id))
+        # Audit trail is embedded, so we just need to serialize it
+        history = doc.audit_trail
         
-        return current_app.response_class(JSONEncoder().encode(history), mimetype='application/json')
+        return current_app.response_class(json.dumps(history, cls=JSONEncoder), mimetype='application/json')
     except Exception as e:
         logger.error(f"Error fetching history for document {doc_id}: {e}", exc_info=True)
         return jsonify({"error": "An internal error occurred"}), 500
