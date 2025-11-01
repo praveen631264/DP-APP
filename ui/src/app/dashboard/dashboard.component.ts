@@ -1,33 +1,27 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { AgGridModule } from 'ag-grid-angular';
-import { ColDef } from 'ag-grid-community';
+import { MatCardModule } from '@angular/material/card';
+import { MatListModule } from '@angular/material/list';
+import { MatIconModule } from '@angular/material/icon';
+import { Subscription } from 'rxjs';
+
 import { DashboardService, DashboardStats } from '../services/dashboard.service';
 import { DocumentService, PaginatedDocumentsResponse } from '../services/document.service';
 import { Document } from '../models/document.model';
-import { ActionsCellRendererComponent } from './actions-cell-renderer.component';
 import { NgxChartsModule } from '@swimlane/ngx-charts';
-import { Subscription } from 'rxjs';
 
 @Component({
   selector: 'app-dashboard',
   templateUrl: './dashboard.component.html',
   styleUrls: ['./dashboard.component.scss'],
   standalone: true,
-  imports: [CommonModule, AgGridModule, NgxChartsModule, ActionsCellRendererComponent],
+  imports: [CommonModule, NgxChartsModule, MatCardModule, MatListModule, MatIconModule],
 })
 export class DashboardComponent implements OnInit, OnDestroy {
 
   public stats!: DashboardStats;
   public documents: Document[] = [];
   private refreshSubscription!: Subscription;
-
-  public columnDefs: ColDef[] = [
-    { headerName: 'Filename', field: 'filename', sortable: true, filter: true },
-    { headerName: 'Status', field: 'status', sortable: true, filter: true },
-    { headerName: 'Created At', field: 'created_at', sortable: true, filter: true },
-    { headerName: 'Actions', cellRenderer: ActionsCellRendererComponent },
-  ];
 
   constructor(
     private dashboardService: DashboardService,

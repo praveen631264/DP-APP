@@ -2,43 +2,64 @@
   <h1>Dashboard</h1>
 
   <div class="stats-cards">
-    <div class="card">
-      <h2>Total Documents</h2>
-      <p>{{ stats.total_documents }}</p>
-    </div>
-    <div class="card">
-      <h2>Pending Users</h2>
-      <p>{{ stats.pending_users }}</p>
-    </div>
+    <mat-card class="card">
+      <mat-card-header>
+        <mat-card-title>Total Documents</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <p>{{ stats.total_documents }}</p>
+      </mat-card-content>
+    </mat-card>
+    <mat-card class="card">
+      <mat-card-header>
+        <mat-card-title>Pending Users</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <p>{{ stats.pending_users }}</p>
+      </mat-card-content>
+    </mat-card>
   </div>
 
   <div class="charts-container">
-    <div class="chart">
-      <h2>Documents by Status</h2>
-      <ngx-charts-pie-chart
-        [results]="objectToChartData(stats.status_counts)"
-        [labels]="true"
-        [doughnut]="true">
-      </ngx-charts-pie-chart>
-    </div>
-    <div class="chart">
-      <h2>Documents by Category</h2>
-      <ngx-charts-bar-vertical
-        [results]="stats.category_counts"
-        [xAxis]="true"
-        [yAxis]="true"
-        [legend]="true">
-      </ngx-charts-bar-vertical>
-    </div>
+    <mat-card class="chart">
+      <mat-card-header>
+        <mat-card-title>Documents by Status</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <ngx-charts-pie-chart
+          [results]="objectToChartData(stats.status_counts)"
+          [labels]="true"
+          [doughnut]="true">
+        </ngx-charts-pie-chart>
+      </mat-card-content>
+    </mat-card>
+    <mat-card class="chart">
+      <mat-card-header>
+        <mat-card-title>Documents by Category</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <ngx-charts-bar-vertical
+          [results]="stats.category_counts"
+          [xAxis]="true"
+          [yAxis]="true"
+          [legend]="true">
+        </ngx-charts-bar-vertical>
+      </mat-card-content>
+    </mat-card>
   </div>
 
   <div class="recent-documents">
     <h2>Recent Documents</h2>
-    <ag-grid-angular
-      style="width: 100%; height: 300px;"
-      class="ag-theme-alpine"
-      [rowData]="documents"
-      [columnDefs]="columnDefs">
-    </ag-grid-angular>
+    <mat-card>
+      <mat-list>
+        <ng-container *ngFor="let doc of documents">
+          <mat-list-item>
+            <mat-icon mat-list-icon>description</mat-icon>
+            <div mat-line>{{doc.filename}}</div>
+            <div mat-line>Status: {{doc.status}}</div>
+          </mat-list-item>
+        </ng-container>
+      </mat-list>
+    </mat-card>
   </div>
 </div>

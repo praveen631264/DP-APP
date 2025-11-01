@@ -1,93 +1,105 @@
+import { Component, OnInit, OnDestroy, ViewChild } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { SelectionModel } from '@angular/cdk/collections';
+import { MatTableDataSource, MatTableModule } from '@angular/material/table';
+import { MatPaginator, MatPaginatorModule } from '@angular/material/paginator';
+import { MatSort, MatSortModule } from '@angular/material/sort';
+import { MatCheckboxModule } from '@angular/material/checkbox';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+import { MatIconModule } from '@angular/material/icon';
+import { MatButtonModule } from '@angular/material/button';
+import { Subscription } from 'rxjs';
 
-import { Component, OnInit } from '@angular/core';
-import { GridApi, GridReadyEvent, IServerSideDatasource, IServerSideGetRowsRequest } from 'ag-grid-community';
-import 'ag-grid-enterprise';
-import { AgGridModule } from 'ag-grid-angular';
+import { DocumentService, PaginatedDocumentsResponse } from '../services/document.service';
+import { Document } from '../models/document.model'; // Correctly import the Document model
+import { SocketService, DocumentStatusUpdate } from '../services/socket.service';
 import { DocumentUploadComponent } from '../document-upload/document-upload.component';
 import { StatusViewerComponent } from '../status-viewer/status-viewer.component';
-import { CommonModule } from '@angular/common';
-import { MatDialog, MatDialogModule } from '@angular/material/dialog';
-import { DocumentService } from '../services/document.service';
 import { HttpClientModule } from '@angular/common/http';
-import { SocketService, DocumentStatusUpdate } from '../services/socket.service';
-import { ActionsCellRendererComponent } from './actions-cell-renderer.component';
-
-// Define the response structure from your service for better type safety
-export interface PaginatedDocumentsResponse {
-  items: any[];
-  total: number;
-}
 
 @Component({
   selector: 'app-document-list',
   templateUrl: './document-list.component.html',
   styleUrls: ['./document-list.component.scss'],
   standalone: true,
-  imports: [AgGridModule, DocumentUploadComponent, CommonModule, MatDialogModule, HttpClientModule]
+  imports: [
+    CommonModule,
+    HttpClientModule,
+    MatTableModule,
+    MatPaginatorModule,
+    MatSortModule,
+    MatCheckboxModule,
+    MatDialogModule,
+    MatIconModule,
+    MatButtonModule,
+    DocumentUploadComponent,
+    StatusViewerComponent
+  ]
 })
-export class DocumentListComponent implements OnInit {
-  public columnDefs: any[] = [
-    { headerName: 'Name', field: 'name', sortable: true, filter: true },
-    { headerName: 'Category', field: 'category', sortable: true, filter: true, rowGroup: true, hide: true },
-    { headerName: 'Status', field: 'status', cellRenderer: StatusViewerComponent },
-    { headerName: 'Actions', field: 'actions', cellRenderer: ActionsCellRendererComponent, suppressMenu: true, sortable: false },
-  ];
+export class DocumentListComponent implements OnInit, OnDestroy {
+  displayedColumns: string[] = ['select', 'filename', 'category', 'status', 'actions']; // Corrected 'name' to 'filename'
+  dataSource = new MatTableDataSource<Document>();
+  selection = new SelectionModel<Document>(true, []);
+  private socketSubscription!: Subscription;
 
-  public autoGroupColumnDef = {
-    headerName: 'Group',
-    minWidth: 250,
-    field: 'name',
-    valueGetter: function(params: any) {
-      if (params.node.group) {
-        return params.node.key;
-      } else {
-        return params.data[params.colDef.field];
-      }
-    },
-    headerCheckboxSelection: true,
-    cellRenderer: 'agGroupCellRenderer',
-    cellRendererParams: {
-      checkbox: true
-    }
-  };
+  @ViewChild(MatPaginator) paginator!: MatPaginator;
+  @ViewChild(MatSort) sort!: MatSort;
 
-  public gridApi!: GridApi;
-  public rowModelType = 'serverSide';
-
-  constructor(private documentService: DocumentService, private socketService: SocketService) {}
+  constructor(
+    private documentService: DocumentService,
+    private socketService: SocketService,
+    public dialog: MatDialog
+  ) {}
 
   ngOnInit() {
-    this.socketService.onDocumentStatusChanged().subscribe((data: DocumentStatusUpdate) => {
-      const rowNode = this.gridApi.getRowNode(data.doc_id);
-      if (rowNode) {
-        rowNode.data.status = data.status;
-        this.gridApi.applyTransaction({ update: [rowNode.data] });
-      }
+    this.loadDocuments();
+    this.socketSubscription = this.socketService.onDocumentStatusChanged().subscribe((data: DocumentStatusUpdate) => {
+      this.updateRowData(data);
     });
   }
 
-  onGridReady(params: GridReadyEvent) {
-    this.gridApi = params.api;
-    const datasource = this.createServerSideDatasource();
-    this.gridApi.setServerSideDatasource(datasource);
-Chemicals
+  ngOnDestroy() {
+    if (this.socketSubscription) {
+      this.socketSubscription.unsubscribe();
+    }
   }
 
-  createServerSideDatasource(): IServerSideDatasource {
-    return {
-      getRows: (params: IServerSideGetRowsRequest) => {
-        this.documentService.getDocuments(params.request)
-          .subscribe((response: PaginatedDocumentsResponse) => {
-            params.success({
-              rowData: response.items,
-              rowCount: response.total,
-            });
-          }, error => {
-            console.error('Failed to load documents for grid', error);
-            params.fail();
-          });
-      },
-    };
+  loadDocuments() {
+    // Fetch all documents for client-side pagination and sorting
+    this.documentService.getDocuments({ startRow: 0, endRow: 10000, sortModel: [], filterModel: {} })
+      .subscribe((response: PaginatedDocumentsResponse) => {
+        this.dataSource.data = response.items;
+        this.dataSource.paginator = this.paginator;
+        this.dataSource.sort = this.sort;
+      }, error => {
+        console.error('Failed to load documents for grid', error);
+      });
   }
+
+  updateRowData(data: DocumentStatusUpdate) {
+    const index = this.dataSource.data.findIndex(doc => doc._id === data.doc_id);
+    if (index > -1) {
+      const updatedData = [...this.dataSource.data];
+      updatedData[index].status = data.status;
+      this.dataSource.data = updatedData;
+    }
+  }
+
+  isAllSelected() {
+    const numSelected = this.selection.selected.length;
+    const numRows = this.dataSource.data.length;
+    return numSelected === numRows;
+  }
+
+  masterToggle() {
+    this.isAllSelected() ?
+        this.selection.clear() :
+        this.dataSource.data.forEach(row => this.selection.select(row));
+  }
+
+  // Dummy methods for actions - implement as needed
+  viewDocument(doc: Document) { console.log('Viewing', doc); }
+  editDocument(doc: Document) { console.log('Editing', doc); }
+  deleteDocument(doc: Document) { console.log('Deleting', doc); }
 
 }
