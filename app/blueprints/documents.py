@@ -50,8 +50,17 @@ def upload_document():
 @bp.route('/', methods=['GET'])
 def get_documents():
     try:
-        page = int(request.args.get('page', 1))
-        limit = int(request.args.get('limit', 10))
+        page_str = request.args.get('page', '1')
+        limit_str = request.args.get('limit', '10')
+        try:
+            page = int(page_str)
+        except (ValueError, TypeError):
+            page = 1
+        try:
+            limit = int(limit_str)
+        except (ValueError, TypeError):
+            limit = 10
+
         sort_by = request.args.get('sort_by', 'created_at')
         sort_order = request.args.get('sort_order', 'desc')
         
@@ -59,6 +68,8 @@ def get_documents():
         for key, value in request.args.items():
             if key not in ['page', 'limit', 'sort_by', 'sort_order'] and value and value != 'undefined':
                 if hasattr(Document, key) and '__' not in key:
+                    query_filters[f"{key}__icontains"] = value
+                else:
                     query_filters[key] = value
 
         total = Document.objects(**query_filters).count()
