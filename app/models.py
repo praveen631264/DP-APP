@@ -29,7 +29,7 @@ class PlaybookStep(mongoengine.EmbeddedDocument):
     type = mongoengine.StringField(required=True)
     name = mongoengine.StringField(required=True)
     on_failure = mongoengine.DictField()
-    # Allow dynamic fields by not being strict
+    meta = {'strict': False}
 
 class Playbook(mongoengine.Document):
     name = mongoengine.StringField(required=True)
