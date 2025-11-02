@@ -39,7 +39,7 @@
       </mat-card-header>
       <mat-card-content>
         <ngx-charts-bar-vertical
-          [results]="stats.category_counts"
+          [results]="objectToChartData(stats.category_counts)"
           [xAxis]="true"
           [yAxis]="true"
           [legend]="true">

@@ -51,7 +51,7 @@ def upload_document():
 def get_documents():
     """
     Retrieves a paginated and filtered list of documents.
-    The global JSON encoder now handles serialization correctly.
+    The QuerySet is now explicitly converted to a list before serialization.
     """
     try:
         page_str = request.args.get('page', '1')
@@ -80,8 +80,10 @@ def get_documents():
         sort_string = f"{'-' if sort_order == 'desc' else ''}{sort_by}"
         documents_queryset = Document.objects(**query_filters).order_by(sort_string).skip((page - 1) * limit).limit(limit)
 
-        # The queryset can now be returned directly thanks to the global encoder
-        return jsonify({"items": documents_queryset, "total": total, "page": page, "limit": limit}), 200
+        # Convert the QuerySet to a list to make it serializable
+        document_list = list(documents_queryset)
+
+        return jsonify({"items": document_list, "total": total, "page": page, "limit": limit}), 200
     except Exception as e:
         logger.error(f"Error fetching documents: {e}", exc_info=True)
         return jsonify({"error": "An internal error occurred"}), 500
