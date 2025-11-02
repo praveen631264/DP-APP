@@ -43,7 +43,7 @@ def upload_document():
 
         except Exception as e:
             logger.error(f"Error during document upload: {e}", exc_info=True)
-            return jsonify({"error": "An internal error occurred during file upload"}), 500
+            return jsonify({"error": f"An internal error occurred during file upload: {str(e)}"}), 500
     else:
         return jsonify({"error": "File type not allowed"}), 400
 
@@ -73,16 +73,16 @@ def get_documents():
                     query_filters[key] = value
 
         total = Document.objects(**query_filters).count()
-        sort_string = f"{'-' if sort_order == 'desc' else ''}{sort_by}"
+        sort_string = f"{''.join('-' if sort_order == 'desc' else '')}{sort_by}"
         documents_queryset = Document.objects(**query_filters).order_by(sort_string).skip((page - 1) * limit).limit(limit)
 
-        # The fix is to remove the unnecessary json.loads() call and let jsonify handle the encoding.
-        document_list = [doc.to_mongo().to_dict() for doc in documents_queryset]
+        document_list = [json.loads(doc.to_json()) for doc in documents_queryset]
 
         return jsonify({"items": document_list, "total": total, "page": page, "limit": limit}), 200
     except Exception as e:
         logger.error(f"Error fetching documents: {e}", exc_info=True)
-        return jsonify({"error": "An internal error occurred"}), 500
+        # Temporarily return the actual exception to the frontend for debugging.
+        return jsonify({"error": f"An internal error occurred in get_documents: {str(e)}"}), 500
 
 @bp.route('/<doc_id>', methods=['GET'])
 def get_document_details(doc_id):
@@ -98,7 +98,7 @@ def get_document_details(doc_id):
             return jsonify({"error": "Document not found"}), 404
     except Exception as e:
         logger.error(f"Error fetching document {doc_id}: {e}", exc_info=True)
-        return jsonify({"error": "An internal error occurred"}), 500
+        return jsonify({"error": f"An internal error occurred: {str(e)}"}), 500
 
 @bp.route('/<doc_id>', methods=['DELETE'])
 def delete_document(doc_id):
@@ -116,7 +116,7 @@ def delete_document(doc_id):
         return jsonify({"message": "Document has been successfully archived."}), 200
     except Exception as e:
         logger.error(f"Error soft-deleting document {doc_id}: {e}", exc_info=True)
-        return jsonify({"error": "An internal error occurred"}), 500
+        return jsonify({"error": f"An internal error occurred: {str(e)}"}), 500
 
 @bp.route('/search', methods=['GET'])
 def search_documents():
@@ -129,7 +129,7 @@ def search_documents():
         return jsonify(documents_list), 200
     except Exception as e:
         logger.error(f"Error during document search for query '{query}': {e}", exc_info=True)
-        return jsonify({"error": "An internal error occurred"}), 500
+        return jsonify({"error": f"An internal error occurred: {str(e)}"}), 500
 
 @bp.route('/<doc_id>/download', methods=['GET'])
 def download_document(doc_id):
@@ -149,7 +149,7 @@ def download_document(doc_id):
         )
     except Exception as e:
         logger.error(f"Error downloading file for doc {doc_id}: {e}", exc_info=True)
-        return jsonify({"error": "An internal error occurred"}), 500
+        return jsonify({"error": f"An internal error occurred: {str(e)}"}), 500
 
 @bp.route('/<doc_id>/kvp', methods=['PUT'])
 def update_kvp(doc_id):
@@ -180,7 +180,7 @@ def update_kvp(doc_id):
 
     except Exception as e:
         logger.error(f"Error updating KVP for doc {doc_id}: {e}", exc_info=True)
-        return jsonify({"error": "An internal error occurred"}), 500
+        return jsonify({"error": f"An internal error occurred: {str(e)}"}), 500
 
 @bp.route('/<doc_id>/recategorize', methods=['PUT'])
 def recategorize_document(doc_id):
@@ -217,7 +217,7 @@ def recategorize_document(doc_id):
 
     except Exception as e:
         logger.error(f"Error re-categorizing document {doc_id}: {e}", exc_info=True)
-        return jsonify({"error": "An internal error occurred"}), 500
+        return jsonify({"error": f"An internal error occurred: {str(e)}"}), 500
 
 @bp.route('/<doc_id>/reprocess', methods=['POST'])
 def reprocess_document(doc_id):
@@ -234,7 +234,7 @@ def reprocess_document(doc_id):
         return jsonify({"message": "Document has been queued for reprocessing."}), 202
     except Exception as e:
         logger.error(f"Error triggering reprocessing for doc {doc_id}: {e}", exc_info=True)
-        return jsonify({"error": "An internal error occurred"}), 500
+        return jsonify({"error": f"An internal error occurred: {str(e)}"}), 500
 
 @bp.route('/<doc_id>/stop', methods=['POST'])
 def stop_document_processing_route(doc_id):
@@ -253,7 +253,7 @@ def stop_document_processing_route(doc_id):
 
     except Exception as e:
         logger.error(f"Error stopping processing for doc {doc_id}: {e}", exc_info=True)
-        return jsonify({"error": "An internal error occurred"}), 500
+        return jsonify({"error": f"An internal error occurred: {str(e)}"}), 500
 
 @bp.route('/<doc_id>/history', methods=['GET'])
 def get_document_history(doc_id):
@@ -271,4 +271,4 @@ def get_document_history(doc_id):
         return jsonify(history_list)
     except Exception as e:
         logger.error(f"Error fetching history for document {doc_id}: {e}", exc_info=True)
-        return jsonify({"error": "An internal error occurred"}), 500
+        return jsonify({"error": f"An internal error occurred: {str(e)}"}), 500
