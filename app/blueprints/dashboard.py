@@ -27,8 +27,8 @@ def get_dashboard_stats():
             {'$group': {'_id': '$category', 'count': {'$sum': 1}}}
         ]
         category_counts_cursor = Document.objects.aggregate(category_pipeline)
-        # Correctly create a dictionary for category_counts
-        category_counts = {item['_id']: item['count'] for item in category_counts_cursor}
+        # Correctly create a dictionary for category_counts, converting ObjectId to string
+        category_counts = {str(item['_id']): item['count'] for item in category_counts_cursor}
 
         # Count users who are not yet active
         pending_users = User.objects(active=False).count()
