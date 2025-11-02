@@ -1,0 +1,47 @@
+<div class="document-detail-container" *ngIf="!isLoading; else loadingSpinner">
+  <mat-card *ngIf="document; else notFound">
+    <mat-card-header>
+      <mat-card-title>{{ document.filename }}</mat-card-title>
+      <mat-card-subtitle>Status: {{ document.status }}</mat-card-subtitle>
+    </mat-card-header>
+    <mat-card-content>
+      <h3>Key-Value Pairs</h3>
+      <mat-list *ngIf="document.kvps && objectKeys(document.kvps).length > 0; else noKvps">
+        <mat-list-item *ngFor="let key of objectKeys(document.kvps)">
+          <mat-icon mat-list-icon>label</mat-icon>
+          <div class="kvp-item">
+            <strong>{{ key }}:</strong> {{ document.kvps[key] }}
+          </div>
+        </mat-list-item>
+      </mat-list>
+      <ng-template #noKvps>
+        <p>No key-value pairs have been extracted for this document.</p>
+      </ng-template>
+
+      <h3>Audit Trail</h3>
+      <mat-list *ngIf="document.audit_trail && document.audit_trail.length > 0; else noAudit">
+        <mat-list-item *ngFor="let event of document.audit_trail">
+            <mat-icon mat-list-icon>history</mat-icon>
+            <div class="audit-item">
+                <p><strong>Event:</strong> {{ event.event_name }}</p>
+                <p><strong>Timestamp:</strong> {{ event.timestamp | date:'medium' }}</p>
+            </div>
+        </mat-list-item>
+      </mat-list>
+      <ng-template #noAudit>
+        <p>No audit trail available for this document.</p>
+      </ng-template>
+
+    </mat-card-content>
+  </mat-card>
+
+  <ng-template #loadingSpinner>
+    <div class="spinner-container">
+        <mat-progress-spinner mode="indeterminate"></mat-progress-spinner>
+    </div>
+  </ng-template>
+
+  <ng-template #notFound>
+    <p>Document not found.</p>
+  </ng-template>
+</div>

@@ -1,3 +1,3 @@
-<div class="status-container" [ngClass]="status.toLowerCase()">
-  {{ status }}
-</div>
+<div class="status-badge" [ngClass]="'status-' + status.toLowerCase().replace(' ', '-')">
+    {{ status }}
+  </div>

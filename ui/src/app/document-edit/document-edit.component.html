@@ -1,0 +1,41 @@
+<div class="document-edit-container" *ngIf="!isLoading; else loadingSpinner">
+  <mat-card *ngIf="document; else notFound">
+    <mat-card-header>
+      <mat-card-title>Edit Key-Value Pairs for {{ document.filename }}</mat-card-title>
+    </mat-card-header>
+    <mat-card-content>
+      <form [formGroup]="editForm" (ngSubmit)="onSubmit()" *ngIf="document.kvps">
+        <div *ngFor="let key of objectKeys(document.kvps)" class="form-field-container">
+          <mat-form-field appearance="fill">
+            <mat-label>{{ key }}</mat-label>
+            <input matInput [formControlName]="key">
+          </mat-form-field>
+        </div>
+
+        <div class="actions">
+          <button mat-raised-button color="primary" type="submit" [disabled]="isSaving">
+            <span *ngIf="!isSaving">Save</span>
+            <span *ngIf="isSaving">
+              <mat-spinner diameter="20" class="button-spinner"></mat-spinner>
+              Saving...
+            </span>
+          </button>
+          <button mat-button type="button" (click)="router.navigate(['/documents', document.id])" [disabled]="isSaving">
+            Cancel
+          </button>
+        </div>
+      </form>
+      <p *ngIf="!document.kvps">No editable key-value pairs for this document.</p>
+    </mat-card-content>
+  </mat-card>
+
+  <ng-template #loadingSpinner>
+    <div class="spinner-container">
+      <mat-progress-spinner mode="indeterminate"></mat-progress-spinner>
+    </div>
+  </ng-template>
+
+  <ng-template #notFound>
+    <p>Document not found.</p>
+  </ng-template>
+</div>

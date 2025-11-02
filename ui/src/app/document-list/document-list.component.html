@@ -1,10 +1,9 @@
-<div class="document-list-container">
+<!-- <div class="document-list-container">
   <app-document-upload (uploadSuccess)="loadDocuments()"></app-document-upload>
 
   <div class="mat-elevation-z8">
     <table mat-table [dataSource]="dataSource" matSort>
 
-      <!-- Checkbox Column -->
       <ng-container matColumnDef="select">
         <th mat-header-cell *matHeaderCellDef>
           <mat-checkbox (change)="$event ? masterToggle() : null"
@@ -20,19 +19,16 @@
         </td>
       </ng-container>
 
-      <!-- Filename Column -->
       <ng-container matColumnDef="filename">
         <th mat-header-cell *matHeaderCellDef mat-sort-header> Filename </th>
         <td mat-cell *matCellDef="let element"> {{element.filename}} </td>
       </ng-container>
 
-      <!-- Category Column -->
       <ng-container matColumnDef="category">
         <th mat-header-cell *matHeaderCellDef mat-sort-header> Category </th>
         <td mat-cell *matCellDef="let element"> {{element.category}} </td>
       </ng-container>
 
-      <!-- Status Column -->
       <ng-container matColumnDef="status">
         <th mat-header-cell *matHeaderCellDef> Status </th>
         <td mat-cell *matCellDef="let element">
@@ -40,13 +36,11 @@
         </td>
       </ng-container>
       
-      <!-- Created At Column -->
       <ng-container matColumnDef="created_at">
         <th mat-header-cell *matHeaderCellDef mat-sort-header> Created At </th>
         <td mat-cell *matCellDef="let element"> {{element.created_at | date:'medium'}} </td>
       </ng-container>
 
-      <!-- Actions Column -->
       <ng-container matColumnDef="actions">
         <th mat-header-cell *matHeaderCellDef> Actions </th>
         <td mat-cell *matCellDef="let element">
@@ -69,4 +63,10 @@
 
     <mat-paginator [pageSizeOptions]="[10, 25, 100]" showFirstLastButtons></mat-paginator>
   </div>
+</div> -->
+
+<div *ngFor="let doc of dataSource.data">
+    {{ doc.filename }}
+    <button (click)="viewDocument(doc)">View</button>
+    <button (click)="editDocument(doc)">Edit</button>
 </div>

@@ -33,7 +33,7 @@ class PlaybookModel(BaseModel):
     steps: List[PlaybookStepModels] = Field(..., discriminator='type')
     final_status: Optional[str] = 'Processed'
 
-@bp.route('/playbooks', methods=['POST'])
+@bp.route('/', methods=['POST'])
 def create_playbook():
     """Creates a new playbook using MongoEngine models."""
     data = request.get_json()
@@ -53,7 +53,7 @@ def create_playbook():
         logger.error(f"Error creating playbook: {e}", exc_info=True)
         return jsonify({"error": "An internal error occurred"}), 500
 
-@bp.route('/playbooks', methods=['GET'])
+@bp.route('/', methods=['GET'])
 def get_playbooks():
     """Retrieves playbooks using MongoEngine queries."""
     category_name = request.args.get('category_name')
@@ -69,7 +69,7 @@ def get_playbooks():
         logger.error(f"Error fetching playbooks: {e}", exc_info=True)
         return jsonify({"error": "An internal error occurred"}), 500
 
-@bp.route('/playbooks/<playbook_id>', methods=['GET'])
+@bp.route('/<playbook_id>', methods=['GET'])
 def get_playbook(playbook_id):
     """Retrieves a single playbook by its ID."""
     try:
@@ -86,7 +86,7 @@ def get_playbook(playbook_id):
         logger.error(f"Error fetching playbook {playbook_id}: {e}", exc_info=True)
         return jsonify({"error": "An internal error occurred"}), 500
 
-@bp.route('/playbooks/<playbook_id>', methods=['PUT'])
+@bp.route('/<playbook_id>', methods=['PUT'])
 def update_playbook(playbook_id):
     """Updates an existing playbook."""
     data = request.get_json()
@@ -113,7 +113,7 @@ def update_playbook(playbook_id):
         logger.error(f"Error updating playbook {playbook_id}: {e}", exc_info=True)
         return jsonify({"error": "An internal error occurred"}), 500
 
-@bp.route('/playbooks/<playbook_id>', methods=['DELETE'])
+@bp.route('/<playbook_id>', methods=['DELETE'])
 def delete_playbook(playbook_id):
     """Deletes a playbook."""
     try:

@@ -1,19 +1,19 @@
+
+export interface AuditLog {
+    event_name: string;
+    timestamp: string;
+    details: any;
+}
+
 export interface Document {
-  id: string; // Use 'id' to match the backend API response
-  _id: string; // Keep _id for any direct MongoDB interactions if necessary
-  filename: string;
-  content_type: string;
-  file_id: string;
-  status: string;
-  category?: string;
-  kvps?: any; // key-value pairs
-  text?: string;
-  embedding?: any;
-  created_at: string;
-  processed_at?: string;
-  deleted_at?: string;
-  _version?: number;
-  categorization_explanation?: string;
-  processing_chain_id?: string;
-  status_message?: string;
+    id: string;
+    filename: string;
+    content_type: string;
+    status: string;
+    category: string;
+    kvps: { [key: string]: any };
+    audit_trail: AuditLog[];
+    created_at: string;
+    updated_at: string;
+    _version: number;
 }
