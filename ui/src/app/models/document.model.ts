@@ -1,5 +1,6 @@
 export interface Document {
-  _id: string;
+  id: string; // Use 'id' to match the backend API response
+  _id: string; // Keep _id for any direct MongoDB interactions if necessary
   filename: string;
   content_type: string;
   file_id: string;

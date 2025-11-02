@@ -9,12 +9,14 @@ import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { Subscription } from 'rxjs';
+import { Router } from '@angular/router';
 
 import { DocumentService, PaginatedDocumentsResponse } from '../services/document.service';
-import { Document } from '../models/document.model'; // Correctly import the Document model
+import { Document } from '../models/document.model';
 import { SocketService, DocumentStatusUpdate } from '../services/socket.service';
 import { DocumentUploadComponent } from '../document-upload/document-upload.component';
 import { StatusViewerComponent } from '../status-viewer/status-viewer.component';
+import { ConfirmationDialogComponent } from '../confirmation-dialog/confirmation-dialog.component';
 import { HttpClientModule } from '@angular/common/http';
 
 @Component({
@@ -37,7 +39,7 @@ import { HttpClientModule } from '@angular/common/http';
   ]
 })
 export class DocumentListComponent implements OnInit, OnDestroy {
-  displayedColumns: string[] = ['select', 'filename', 'category', 'status', 'actions']; // Corrected 'name' to 'filename'
+  displayedColumns: string[] = ['select', 'filename', 'category', 'status', 'created_at', 'actions'];
   dataSource = new MatTableDataSource<Document>();
   selection = new SelectionModel<Document>(true, []);
   private socketSubscription!: Subscription;
@@ -48,6 +50,7 @@ export class DocumentListComponent implements OnInit, OnDestroy {
   constructor(
     private documentService: DocumentService,
     private socketService: SocketService,
+    private router: Router,
     public dialog: MatDialog
   ) {}
 
@@ -65,7 +68,6 @@ export class DocumentListComponent implements OnInit, OnDestroy {
   }
 
   loadDocuments() {
-    // Fetch all documents for client-side pagination and sorting
     this.documentService.getDocuments({ startRow: 0, endRow: 10000, sortModel: [], filterModel: {} })
       .subscribe((response: PaginatedDocumentsResponse) => {
         this.dataSource.data = response.items;
@@ -77,7 +79,7 @@ export class DocumentListComponent implements OnInit, OnDestroy {
   }
 
   updateRowData(data: DocumentStatusUpdate) {
-    const index = this.dataSource.data.findIndex(doc => doc._id === data.doc_id);
+    const index = this.dataSource.data.findIndex(doc => doc.id === data.doc_id);
     if (index > -1) {
       const updatedData = [...this.dataSource.data];
       updatedData[index].status = data.status;
@@ -97,9 +99,27 @@ export class DocumentListComponent implements OnInit, OnDestroy {
         this.dataSource.data.forEach(row => this.selection.select(row));
   }
 
-  // Dummy methods for actions - implement as needed
-  viewDocument(doc: Document) { console.log('Viewing', doc); }
-  editDocument(doc: Document) { console.log('Editing', doc); }
-  deleteDocument(doc: Document) { console.log('Deleting', doc); }
+  viewDocument(doc: Document) {
+    this.router.navigate(['/documents', doc.id]);
+  }
 
+  editDocument(doc: Document) {
+    this.router.navigate(['/documents', doc.id, 'edit']);
+  }
+
+  deleteDocument(doc: Document) {
+    const dialogRef = this.dialog.open(ConfirmationDialogComponent, {
+      data: { message: `Are you sure you want to delete ${doc.filename}?` }
+    });
+
+    dialogRef.afterClosed().subscribe(result => {
+      if (result) {
+        this.documentService.deleteDocument(doc.id).subscribe(() => {
+          this.dataSource.data = this.dataSource.data.filter(d => d.id !== doc.id);
+        }, error => {
+          console.error(`Failed to delete document ${doc.id}`, error);
+        });
+      }
+    });
+  }
 }
