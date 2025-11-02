@@ -1,4 +1,5 @@
 
+import logging
 from flask import Blueprint, jsonify
 from app.models import Document, User
 
@@ -43,4 +44,5 @@ def get_dashboard_stats():
         return jsonify(stats), 200
 
     except Exception as e:
+        logging.exception("An error occurred while fetching dashboard stats.")
         return jsonify({'error': 'An error occurred while fetching dashboard stats', 'details': str(e)}), 500
