@@ -7,7 +7,6 @@ from flask_security import Security, MongoEngineUserDatastore, utils
 from app.models import User, Role
 from app.database import init_db
 from app.utils.json_encoder import JSONEncoder  # Import the custom encoder
-from app.utils.api_utils import JSONResponse  # Import the custom response class
 import click
 
 # Import blueprints
@@ -31,9 +30,8 @@ security = Security()
 def create_app():
     app = Flask(__name__)
     
-    # --- Use the Custom JSON Encoder and Response Class ---
+    # --- Use the Custom JSON Encoder ---
     app.json_encoder = JSONEncoder
-    app.response_class = JSONResponse
     
     CORS(app)
 
