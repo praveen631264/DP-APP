@@ -41,7 +41,6 @@ services:
       context: .
       dockerfile: Dockerfile
     command: celery -A main.celery worker --loglevel=info
-    container_name: celery-worker
     depends_on:
       - redis
       - ollama
