@@ -1,4 +1,10 @@
-<div class="document-edit-container" *ngIf="!isLoading; else loading">
+<div class="document-edit-container" *ngIf="isLoading; else content">
+  <div class="spinner-container">
+    <mat-progress-spinner mode="indeterminate"></mat-progress-spinner>
+  </div>
+</div>
+
+<ng-template #content>
   <mat-card *ngIf="document; else notFound">
     <mat-card-header>
       <mat-card-title>Edit Key-Value Pairs for {{ document.filename }}</mat-card-title>
@@ -28,14 +34,8 @@
       <p *ngIf="!document.kvps">No editable key-value pairs for this document.</p>
     </mat-card-content>
   </mat-card>
+</ng-template>
 
-  <ng-template #loading>
-    <div class="spinner-container">
-      <mat-progress-spinner mode="indeterminate"></mat-progress-spinner>
-    </div>
-  </ng-template>
-
-  <ng-template #notFound>
-    <p>Document not found.</p>
-  </ng-template>
-</div>
+<ng-template #notFound>
+  <p>Document not found.</p>
+</ng-template>

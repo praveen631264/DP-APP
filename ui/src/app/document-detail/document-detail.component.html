@@ -1,4 +1,10 @@
-<div class="document-detail-container" *ngIf="!isLoading; else loading">
+<div class="document-detail-container" *ngIf="isLoading; else content">
+  <div class="spinner-container">
+    <mat-progress-spinner mode="indeterminate"></mat-progress-spinner>
+  </div>
+</div>
+
+<ng-template #content>
   <mat-card *ngIf="document; else notFound">
     <mat-card-header>
       <mat-card-title>{{ document.filename }}</mat-card-title>
@@ -9,7 +15,7 @@
       <mat-list *ngIf="document.kvps && objectKeys(document.kvps).length > 0; else noKvps">
         <mat-list-item *ngFor="let key of objectKeys(document.kvps)">
           <mat-icon mat-list-icon>label</mat-icon>
-          <div class="kvp-item">
+          <div class="kvp-.item">
             <strong>{{ key }}:</strong> {{ document.kvps[key] }}
           </div>
         </mat-list-item>
@@ -34,14 +40,8 @@
 
     </mat-card-content>
   </mat-card>
+</ng-template>
 
-  <ng-template #loading>
-    <div class="spinner-container">
-        <mat-progress-spinner mode="indeterminate"></mat-progress-spinner>
-    </div>
-  </ng-template>
-
-  <ng-template #notFound>
-    <p>Document not found.</p>
-  </ng-template>
-</div>
+<ng-template #notFound>
+  <p>Document not found.</p>
+</ng-template>
