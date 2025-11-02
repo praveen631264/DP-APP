@@ -6,11 +6,13 @@ from flask_cors import CORS
 from flask_security import Security, MongoEngineUserDatastore, utils
 from app.models import User, Role
 from app.database import init_db
+from app.utils.json_encoder import JSONEncoder  # Import the custom encoder
+from app.utils.api_utils import JSONResponse  # Import the custom response class
 import click
 
 # Import blueprints
 from app.auth import auth_bp
-from app.profile import profile_bp # Import the profile blueprint
+from app.profile import profile_bp
 from app.blueprints.chat import bp as chat_bp
 from app.blueprints.documents import bp as documents_bp
 from app.blueprints.playbooks import bp as playbooks_bp
@@ -28,6 +30,11 @@ security = Security()
 
 def create_app():
     app = Flask(__name__)
+    
+    # --- Use the Custom JSON Encoder and Response Class ---
+    app.json_encoder = JSONEncoder
+    app.response_class = JSONResponse
+    
     CORS(app)
 
     # Configuration
@@ -36,10 +43,9 @@ def create_app():
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'a-hard-to-guess-string')
     app.config['MONGO_URI'] = os.environ.get('MONGO_URI')
     app.config['VECTOR_DIMENSIONS'] = int(os.environ.get('VECTOR_DIMENSIONS', 384))
-    app.config['OLLAMA_BASE_URL'] = os.environ.get('OLLAMA_HOST') # Use OLLAMA_HOST
+    app.config['OLLAMA_BASE_URL'] = os.environ.get('OLLAMA_HOST')
     app.config['CHAT_MODEL_NAME'] = os.environ.get('CHAT_MODEL_NAME', 'llama2')
     app.config['EMBEDDINGS_MODEL_NAME'] = os.environ.get('EMBEDDINGS_MODEL_NAME', 'BAAI/bge-large-en')
-
 
     # Celery Configuration
     app.config['CELERY_BROKER_URL'] = os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/0')
@@ -84,7 +90,6 @@ def create_app():
         if not security.datastore.find_role("User"):
             security.datastore.create_role(name="User", description="General user access")
         
-        # Create a default admin user if one doesn't exist
         admin_email = os.environ.get('ADMIN_EMAIL', 'admin@example.com')
         if not security.datastore.find_user(email=admin_email):
             admin_password = os.environ.get('ADMIN_PASSWORD', 'password')
@@ -101,7 +106,7 @@ def create_app():
 
     # Register blueprints
     app.register_blueprint(auth_bp, url_prefix='/api/v1/auth')
-    app.register_blueprint(profile_bp, url_prefix='/api/v1/profile') # Register the profile blueprint
+    app.register_blueprint(profile_bp, url_prefix='/api/v1/profile')
     app.register_blueprint(chat_bp, url_prefix='/api/v1/chat')
     app.register_blueprint(documents_bp, url_prefix='/api/v1/documents')
     app.register_blueprint(playbooks_bp, url_prefix='/api/v1/playbooks')

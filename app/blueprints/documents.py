@@ -1,12 +1,10 @@
 
 import logging
 import datetime
-import json
 from flask import Blueprint, request, jsonify, current_app, send_file
 from werkzeug.utils import secure_filename
 from app.orchestrator_worker import orchestrator_agent_task
 from io import BytesIO
-from app.utils.json_encoder import JSONEncoder
 from bson import ObjectId
 from app.models import Document, AuditLog
 
@@ -41,8 +39,7 @@ def upload_document():
             orchestrator_agent_task.delay(doc_id=doc_id)
             logger.info(f"Successfully uploaded document '{new_doc.filename}' with ID {doc_id}. Queued for orchestration.")
             
-            doc_json = json.loads(new_doc.to_json())
-            return jsonify(doc_json), 202
+            return jsonify(new_doc), 202
 
         except Exception as e:
             logger.error(f"Error during document upload: {e}", exc_info=True)
@@ -53,7 +50,8 @@ def upload_document():
 @bp.route('/', methods=['GET'])
 def get_documents():
     """
-    Retrieves a paginated and filtered list of documents, ensuring the ID is correctly serialized for the frontend.
+    Retrieves a paginated and filtered list of documents.
+    The global JSON encoder now handles serialization correctly.
     """
     try:
         page_str = request.args.get('page', '1')
@@ -82,18 +80,11 @@ def get_documents():
         sort_string = f"{'-' if sort_order == 'desc' else ''}{sort_by}"
         documents_queryset = Document.objects(**query_filters).order_by(sort_string).skip((page - 1) * limit).limit(limit)
 
-        # --- CORRECT ID SERIALIZATION ---
-        documents_list = []
-        for doc in documents_queryset:
-            doc_dict = json.loads(doc.to_json())
-            doc_dict['id'] = str(doc.id) # Ensure 'id' is a string for the frontend
-            documents_list.append(doc_dict)
-        
-        return jsonify({"items": documents_list, "total": total, "page": page, "limit": limit}), 200
+        # The queryset can now be returned directly thanks to the global encoder
+        return jsonify({"items": documents_queryset, "total": total, "page": page, "limit": limit}), 200
     except Exception as e:
         logger.error(f"Error fetching documents: {e}", exc_info=True)
         return jsonify({"error": "An internal error occurred"}), 500
-
 
 @bp.route('/<doc_id>', methods=['GET'])
 def get_document_details(doc_id):
@@ -104,8 +95,7 @@ def get_document_details(doc_id):
         document = Document.objects(id=doc_id, is_deleted=False).first()
         
         if document:
-            doc_json = json.loads(document.to_json())
-            return jsonify(doc_json), 200
+            return jsonify(document), 200
         else:
             return jsonify({"error": "Document not found"}), 404
     except Exception as e:
@@ -137,8 +127,7 @@ def search_documents():
         return jsonify({"error": "Query parameter 'q' is required"}), 400
     try:
         documents = Document.objects(filename__icontains=query, is_deleted=False)
-        docs_json = json.loads(documents.to_json())
-        return jsonify(docs_json), 200
+        return jsonify(documents), 200
     except Exception as e:
         logger.error(f"Error during document search for query '{query}': {e}", exc_info=True)
         return jsonify({"error": "An internal error occurred"}), 500
@@ -188,8 +177,7 @@ def update_kvp(doc_id):
         doc.audit_trail.append(AuditLog(event_name="KVP Updated", details={"source": "user_action"}))
         doc.save()
 
-        updated_doc = json.loads(doc.to_json())
-        return jsonify({"message": "KVP updated successfully", "document": updated_doc})
+        return jsonify({"message": "KVP updated successfully", "document": doc})
 
     except Exception as e:
         logger.error(f"Error updating KVP for doc {doc_id}: {e}", exc_info=True)
@@ -225,9 +213,8 @@ def recategorize_document(doc_id):
         ))
         doc.save()
         
-        updated_doc = json.loads(doc.to_json())
         logger.info(f"Document {doc_id} re-categorized to '{new_category}' by user.")
-        return jsonify({"message": "Document re-categorized successfully", "document": updated_doc}), 200
+        return jsonify({"message": "Document re-categorized successfully", "document": doc}), 200
 
     except Exception as e:
         logger.error(f"Error re-categorizing document {doc_id}: {e}", exc_info=True)
@@ -281,7 +268,7 @@ def get_document_history(doc_id):
 
         history = doc.audit_trail
         
-        return current_app.response_class(json.dumps(history, cls=JSONEncoder), mimetype='application/json')
+        return jsonify(history)
     except Exception as e:
         logger.error(f"Error fetching history for document {doc_id}: {e}", exc_info=True)
         return jsonify({"error": "An internal error occurred"}), 500
