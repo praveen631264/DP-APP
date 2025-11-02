@@ -54,7 +54,11 @@ export class DocumentUploadComponent {
     }
 
     this.isUploading = true;
-    const uploadObservables = this.files.map(file => this.documentService.uploadDocument(file));
+    const uploadObservables = this.files.map(file => {
+      const formData = new FormData();
+      formData.append('file', file, file.name);
+      return this.documentService.uploadDocument(formData);
+    });
 
     forkJoin(uploadObservables)
       .pipe(

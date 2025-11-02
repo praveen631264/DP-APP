@@ -1,4 +1,4 @@
-<div class="document-edit-container" *ngIf="!isLoading; else loadingSpinner">
+<div class="document-edit-container" *ngIf="!isLoading; else loading">
   <mat-card *ngIf="document; else notFound">
     <mat-card-header>
       <mat-card-title>Edit Key-Value Pairs for {{ document.filename }}</mat-card-title>
@@ -29,7 +29,7 @@
     </mat-card-content>
   </mat-card>
 
-  <ng-template #loadingSpinner>
+  <ng-template #loading>
     <div class="spinner-container">
       <mat-progress-spinner mode="indeterminate"></mat-progress-spinner>
     </div>
