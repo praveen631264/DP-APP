@@ -1,6 +1,6 @@
 
 import logging
-import datetime
+import json
 from flask import Blueprint, request, jsonify, current_app, send_file
 from werkzeug.utils import secure_filename
 from app.orchestrator_worker import orchestrator_agent_task
@@ -39,7 +39,7 @@ def upload_document():
             orchestrator_agent_task.delay(doc_id=doc_id)
             logger.info(f"Successfully uploaded document '{new_doc.filename}' with ID {doc_id}. Queued for orchestration.")
             
-            return jsonify(new_doc), 202
+            return jsonify(json.loads(new_doc.to_json())), 202
 
         except Exception as e:
             logger.error(f"Error during document upload: {e}", exc_info=True)
@@ -49,39 +49,23 @@ def upload_document():
 
 @bp.route('/', methods=['GET'])
 def get_documents():
-    """
-    Retrieves a paginated and filtered list of documents.
-    The QuerySet is now explicitly converted to a list before serialization.
-    """
     try:
-        page_str = request.args.get('page', '1')
-        limit_str = request.args.get('limit', '10')
-        try:
-            page = int(page_str)
-        except (ValueError, TypeError):
-            page = 1
-        try:
-            limit = int(limit_str)
-        except (ValueError, TypeError):
-            limit = 10
-
+        page = int(request.args.get('page', 1))
+        limit = int(request.args.get('limit', 10))
         sort_by = request.args.get('sort_by', 'created_at')
         sort_order = request.args.get('sort_order', 'desc')
         
         query_filters = {'is_deleted': False}
         for key, value in request.args.items():
             if key not in ['page', 'limit', 'sort_by', 'sort_order'] and value and value != 'undefined':
-                if hasattr(Document, key) and isinstance(getattr(Document, key), str):
-                    query_filters[f"{key}__icontains"] = value
-                else:
+                if hasattr(Document, key) and '__' not in key:
                     query_filters[key] = value
 
         total = Document.objects(**query_filters).count()
         sort_string = f"{'-' if sort_order == 'desc' else ''}{sort_by}"
         documents_queryset = Document.objects(**query_filters).order_by(sort_string).skip((page - 1) * limit).limit(limit)
 
-        # Convert the QuerySet to a list to make it serializable
-        document_list = list(documents_queryset)
+        document_list = [json.loads(doc.to_json()) for doc in documents_queryset]
 
         return jsonify({"items": document_list, "total": total, "page": page, "limit": limit}), 200
     except Exception as e:
@@ -97,7 +81,7 @@ def get_document_details(doc_id):
         document = Document.objects(id=doc_id, is_deleted=False).first()
         
         if document:
-            return jsonify(document), 200
+            return jsonify(json.loads(document.to_json())), 200
         else:
             return jsonify({"error": "Document not found"}), 404
     except Exception as e:
@@ -128,8 +112,9 @@ def search_documents():
     if not query:
         return jsonify({"error": "Query parameter 'q' is required"}), 400
     try:
-        documents = Document.objects(filename__icontains=query, is_deleted=False)
-        return jsonify(documents), 200
+        documents_queryset = Document.objects(filename__icontains=query, is_deleted=False)
+        documents_list = [json.loads(doc.to_json()) for doc in documents_queryset]
+        return jsonify(documents_list), 200
     except Exception as e:
         logger.error(f"Error during document search for query '{query}': {e}", exc_info=True)
         return jsonify({"error": "An internal error occurred"}), 500
@@ -179,7 +164,7 @@ def update_kvp(doc_id):
         doc.audit_trail.append(AuditLog(event_name="KVP Updated", details={"source": "user_action"}))
         doc.save()
 
-        return jsonify({"message": "KVP updated successfully", "document": doc})
+        return jsonify({"message": "KVP updated successfully", "document": json.loads(doc.to_json())})
 
     except Exception as e:
         logger.error(f"Error updating KVP for doc {doc_id}: {e}", exc_info=True)
@@ -216,7 +201,7 @@ def recategorize_document(doc_id):
         doc.save()
         
         logger.info(f"Document {doc_id} re-categorized to '{new_category}' by user.")
-        return jsonify({"message": "Document re-categorized successfully", "document": doc}), 200
+        return jsonify({"message": "Document re-categorized successfully", "document": json.loads(doc.to_json())}), 200
 
     except Exception as e:
         logger.error(f"Error re-categorizing document {doc_id}: {e}", exc_info=True)
@@ -268,9 +253,10 @@ def get_document_history(doc_id):
         if not doc:
             return jsonify({"error": "Document not found"}), 404
 
-        history = doc.audit_trail
+        # The audit_trail contains EmbeddedDocuments, which are serializable via the parent's to_json
+        history_list = json.loads(doc.to_json())['audit_trail']
         
-        return jsonify(history)
+        return jsonify(history_list)
     except Exception as e:
         logger.error(f"Error fetching history for document {doc_id}: {e}", exc_info=True)
         return jsonify({"error": "An internal error occurred"}), 500
