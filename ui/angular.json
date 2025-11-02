@@ -28,7 +28,8 @@
             "assets": [
               {
                 "glob": "**/*",
-                "input": "public"
+                "input": "public",
+                "output": "/"
               }
             ],
             "styles": [
@@ -79,7 +80,7 @@
               "buildTarget": "IntelliDocs:build:production"
             },
             "development": {
-              "buildTarget": "Intelli-Docs:build:development"
+              "buildTarget": "IntelliDocs:build:development"
             }
           },
           "defaultConfiguration": "development"
@@ -99,7 +100,8 @@
             "assets": [
               {
                 "glob": "**/*",
-                "input": "public"
+                "input": "public",
+                "output": "/"
               }
             ],
             "styles": [
