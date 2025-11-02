@@ -3,6 +3,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { Document } from '../models/document.model';
+import { environment } from '../../environments/environment';
 
 export interface PaginatedDocumentsResponse {
   items: Document[];
@@ -13,7 +14,7 @@ export interface PaginatedDocumentsResponse {
   providedIn: 'root'
 })
 export class DocumentService {
-  private apiUrl = 'http://127.0.0.1:8000/api/documents';
+  private apiUrl = `${environment.apiUrl}/documents`;
 
   constructor(private http: HttpClient) { }
 
