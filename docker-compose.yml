@@ -1,19 +1,26 @@
 
+x-common-env: &common-env
+  FLASK_ENV: development
+  MONGO_URI: mongodb://root:example@mongo:27017/intellidocs?authSource=admin
+  CELERY_BROKER_URL: redis://redis:6379/0
+  CELERY_RESULT_BACKEND: redis://redis:6379/0
+  OLLAMA_HOST: http://ollama:11434
+  CHAT_MODEL_NAME: phi3:mini
+  EMBEDDINGS_MODEL_NAME: BAAI/bge-large-en
+
 services:
-  # The UI service that builds the Angular app and serves it with Nginx
   ui:
     build:
       context: .
       dockerfile: ui/Dockerfile
     container_name: ui
     ports:
-      - "80:80" # Expose the UI on port 80
+      - "80:80"
     networks:
       - app-network
     depends_on:
-      - api # Wait for the API to be ready before starting
+      - api
 
-  # The Flask API service (renamed to 'api' to match the nginx config)
   api:
     build:
       context: .
@@ -23,21 +30,13 @@ services:
       - mongo
       - redis
       - ollama
-    environment:
-      - FLASK_ENV=development
-      - MONGO_URI=mongodb://root:example@mongo:27017/intellidocs?authSource=admin
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
-      - OLLAMA_HOST=http://ollama:11434
-      - CHAT_MODEL_NAME=phi3:mini
-      - EMBEDDINGS_MODEL_NAME=BAAI/bge-large-en
+    environment: *common-env
     networks:
       - app-network
     volumes:
       - pip-cache:/root/.cache/pip
 
-  # The Celery worker for background tasks
-  celery-worker:
+  worker:
     build:
       context: .
       dockerfile: Dockerfile
@@ -46,19 +45,12 @@ services:
     depends_on:
       - redis
       - ollama
-    environment:
-      - MONGO_URI=mongodb://root:example@mongo:27017/intellidocs?authSource=admin
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
-      - OLLAMA_HOST=http://ollama:11434
-      - CHAT_MODEL_NAME=phi3:mini
-      - EMBEDDINGS_MODEL_NAME=BAAI/bge-large-en
+    environment: *common-env
     networks:
       - app-network
     volumes:
       - pip-cache:/root/.cache/pip
 
-  # Other services remain the same
   mongo:
     image: mongo
     container_name: mongo
@@ -84,7 +76,7 @@ services:
     image: ollama/ollama
     container_name: ollama
     ports:
-      - "11435:11434" # Use host port 11435 to avoid conflict
+      - "11435:11434"
     volumes:
       - ollama-data:/root/.ollama
     networks:
@@ -113,4 +105,4 @@ networks:
 volumes:
   mongo-data:
   ollama-data:
-  pip-cache: # Define the new volume
+  pip-cache:

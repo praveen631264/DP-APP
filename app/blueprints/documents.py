@@ -53,10 +53,9 @@ def upload_document():
 @bp.route('/', methods=['GET'])
 def get_documents():
     """
-    Retrieves a paginated and filtered list of documents using direct MongoEngine queries.
+    Retrieves a paginated and filtered list of documents, ensuring the ID is correctly serialized for the frontend.
     """
     try:
-        # --- Robust Parameter Handling ---
         page_str = request.args.get('page', '1')
         limit_str = request.args.get('limit', '10')
         try:
@@ -71,28 +70,26 @@ def get_documents():
         sort_by = request.args.get('sort_by', 'created_at')
         sort_order = request.args.get('sort_order', 'desc')
         
-        # --- Direct MongoEngine Querying ---
         query_filters = {'is_deleted': False}
-        # Collect valid filters from request arguments
         for key, value in request.args.items():
             if key not in ['page', 'limit', 'sort_by', 'sort_order'] and value and value != 'undefined':
-                # Use __icontains for string searches to be case-insensitive
                 if hasattr(Document, key) and isinstance(getattr(Document, key), str):
                     query_filters[f"{key}__icontains"] = value
                 else:
                     query_filters[key] = value
 
-        # Get total count based on filters
         total = Document.objects(**query_filters).count()
-
-        # Apply sorting, pagination and execute query
         sort_string = f"{'-' if sort_order == 'desc' else ''}{sort_by}"
         documents_queryset = Document.objects(**query_filters).order_by(sort_string).skip((page - 1) * limit).limit(limit)
 
-        # --- Correct JSON Serialization ---
-        documents_json = json.loads(documents_queryset.to_json())
+        # --- CORRECT ID SERIALIZATION ---
+        documents_list = []
+        for doc in documents_queryset:
+            doc_dict = json.loads(doc.to_json())
+            doc_dict['id'] = str(doc.id) # Ensure 'id' is a string for the frontend
+            documents_list.append(doc_dict)
         
-        return jsonify({"items": documents_json, "total": total, "page": page, "limit": limit}), 200
+        return jsonify({"items": documents_list, "total": total, "page": page, "limit": limit}), 200
     except Exception as e:
         logger.error(f"Error fetching documents: {e}", exc_info=True)
         return jsonify({"error": "An internal error occurred"}), 500
@@ -263,7 +260,6 @@ def stop_document_processing_route(doc_id):
         if not doc:
             return jsonify({"error": "Document not found"}), 404
         
-        # Logic to stop processing should be here or in a service layer
         doc.status = "Stopped"
         doc.save()
 
@@ -283,7 +279,6 @@ def get_document_history(doc_id):
         if not doc:
             return jsonify({"error": "Document not found"}), 404
 
-        # Audit trail is embedded, so we just need to serialize it
         history = doc.audit_trail
         
         return current_app.response_class(json.dumps(history, cls=JSONEncoder), mimetype='application/json')
