@@ -76,7 +76,8 @@ def get_documents():
         sort_string = f"{'-' if sort_order == 'desc' else ''}{sort_by}"
         documents_queryset = Document.objects(**query_filters).order_by(sort_string).skip((page - 1) * limit).limit(limit)
 
-        document_list = [json.loads(doc.to_json()) for doc in documents_queryset]
+        # The fix is to remove the unnecessary json.loads() call and let jsonify handle the encoding.
+        document_list = [doc.to_mongo().to_dict() for doc in documents_queryset]
 
         return jsonify({"items": document_list, "total": total, "page": page, "limit": limit}), 200
     except Exception as e:
